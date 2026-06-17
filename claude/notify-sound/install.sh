@@ -15,7 +15,7 @@ SND_SRC="$HERE/help-me.mp3"
 SND_DST="$CLAUDE_DIR/notify-help-me.mp3"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "✗ jq not found. Install it first:  sudo pacman -S jq" >&2
+  echo "✗ jq not found. Install it:  sudo pacman -S jq (Linux)  |  winget install jq (Windows)" >&2
   exit 1
 fi
 
@@ -24,8 +24,9 @@ install -m 0644 "$SND_SRC" "$SND_DST"
 echo "✓ sound → $SND_DST"
 
 # Play command: try mpv → ffplay → mpg123 (any mp3-capable player), never fail
-# the turn. paplay can't decode mp3, so it's intentionally not used here.
-SOUND_CMD='{ command -v mpv >/dev/null && mpv --no-video --really-quiet "$HOME/.claude/notify-help-me.mp3"; } || { command -v ffplay >/dev/null && ffplay -nodisp -autoexit -loglevel quiet "$HOME/.claude/notify-help-me.mp3"; } || { command -v mpg123 >/dev/null && mpg123 -q "$HOME/.claude/notify-help-me.mp3"; } || true'
+# the turn. On Windows (none found), fall back to PowerShell [console]::beep().
+# paplay can't decode mp3, so it's intentionally not used here.
+SOUND_CMD='{ command -v mpv >/dev/null && mpv --no-video --really-quiet "$HOME/.claude/notify-help-me.mp3"; } || { command -v ffplay >/dev/null && ffplay -nodisp -autoexit -loglevel quiet "$HOME/.claude/notify-help-me.mp3"; } || { command -v mpg123 >/dev/null && mpg123 -q "$HOME/.claude/notify-help-me.mp3"; } || { case "$(uname -s)" in *MINGW*|*CYGWIN*|*MSYS*) powershell -c "[console]::beep(660,200)";; esac; } || true'
 
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
 if ! jq -e . "$SETTINGS" >/dev/null 2>&1; then
