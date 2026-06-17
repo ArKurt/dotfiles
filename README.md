@@ -1,36 +1,54 @@
-# dotfiles
+# dotfiles 🧰
 
-个人工具的云端中转站 —— 小而有用的配置 / 脚本,在多台机器间一处维护、随取随用。
+我的私人小工具云端中转站 —— 那些「装一次就离不开」的配置和脚本,集中放一处,
+哪台机器想用就 `clone` 下来一键装上。
 
-每个工具是一个自带 `install.sh` 的目录,安装器都**幂等**(可重复跑)、**不破坏**已有配置。
+每个工具都是一个自带 `install.sh` 的小文件夹。安装器都**幂等**(重复跑没事)、
+而且**只加不砸**——绝不覆盖你已有的配置。
 
-## 用法
+## 怎么取用 🚀
 
-新机器上:
+到一台新机器上,就两步:
 
 ```bash
 git clone git@github.com:ArKurt/dotfiles.git ~/dotfiles
 cd ~/dotfiles
-./install.sh            # 列出所有可用工具
-./install.sh <tool>     # 安装某个
-./install.sh all        # 全装
+
+./install.sh                 # 看看有哪些工具
+./install.sh statusline-context   # 装某一个
+./install.sh all             # 全都装上
 ```
 
-## 工具清单
+装完 Claude Code 相关的工具后,开个新 session(或 `/resume`)就生效啦。
+
+## 工具清单 📦
 
 | 工具 | 说明 |
 |------|------|
 | [`claude/statusline-context`](claude/statusline-context/) | Claude Code 状态栏:实时上下文进度条 + 80% 提示音 |
+| [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) |
 
-## 加新工具
+## 验证过哪些 ✅
 
-1. 建目录(如 `claude/my-tool/`),放进脚本和一个可执行的 `install.sh`。
-2. 安装器约定:幂等、用 `jq` 合并而非覆盖配置文件、缺依赖时清晰报错。
-3. 在上表登记一行。
+搭的时候挨个试过,不是写完就推:
 
-顶层 `install.sh` 会自动发现任何 `*/install.sh`,无需改 dispatcher。
+- `./install.sh` 能正确列出工具、按名安装
+- **合并不覆盖**:拿一个预置了 `Stop` 钩子 + `effortLevel` 的假 `settings.json` 实测,
+  装完那些键原样还在,只是多了新字段
+- 进度条脚本渲染正常:绿(40%)/ 红(85%)、token 计数、分支、模型名都对
 
-## 约定
+## 加新玩意儿 🔧
 
-- 目标平台:Arch Linux(其他平台多数也能跑;音效等平台相关项在各工具 README 注明)。
-- 安装器只新增 / 合并,绝不盲目覆盖用户已有的 hooks、permissions 等。
+想塞个新工具进来,三步:
+
+1. 建个目录(比如 `claude/我的工具/`),放进脚本和一个**可执行**的 `install.sh`。
+2. 安装器守三条规矩:幂等、用 `jq` **合并**而不是覆盖配置、缺依赖时清清楚楚地报错。
+3. 在上面那张表里登记一行。
+
+顶层 `install.sh` 会自动发现任何 `*/install.sh`,所以**不用改 dispatcher**。
+
+## 约定 📋
+
+- 主战场:Arch Linux。多数工具在别的平台也能跑;平台相关的点(比如音效路径)
+  在各工具自己的 README 里写清楚。
+- 安装器只新增 / 合并,绝不盲目覆盖你已有的 hooks、permissions 等。
