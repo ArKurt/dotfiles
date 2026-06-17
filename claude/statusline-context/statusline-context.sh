@@ -14,6 +14,26 @@ session="$(jq -r '.session_id // "default"' <<<"$input")"
 branch="$(jq -r '.workspace.current_branch // .git.branch // empty' <<<"$input")"
 model="$(jq -r '.model.display_name // .model.id // empty' <<<"$input")"
 
+# --- effective context window: env var > model detection > API report ---
+# CLAUDE_CTX_WINDOW overrides everything; known model patterns fill in
+# what the API sometimes under-reports (e.g. deepseek via Anthropic proxy).
+recalc_pct=0
+if [ -n "$CLAUDE_CTX_WINDOW" ] && [ "$CLAUDE_CTX_WINDOW" -gt 0 ] 2>/dev/null; then
+  size="$CLAUDE_CTX_WINDOW"
+  recalc_pct=1
+else
+  case "$model" in
+    deepseek*|DeepSeek*) size=1000000; recalc_pct=1 ;;
+  esac
+fi
+
+# Recalculate percentage when we overrode the window (API % is relative to
+# its own window, which understates usage against the real capacity).
+if [ "$recalc_pct" -eq 1 ] && [ -n "$used" ] && [ "$size" -gt 0 ]; then
+  pct=$(( used * 100 / size ))
+  pct_int="$pct"
+fi
+
 # Fallback if percentage is absent (very start of a session)
 [ -z "$pct" ] && pct=0
 pct_int="${pct%.*}"
