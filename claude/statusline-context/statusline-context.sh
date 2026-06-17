@@ -20,10 +20,18 @@ pct_int="${pct%.*}"
 [ -z "$pct_int" ] && pct_int=0
 
 # --- 80% one-shot alarm (only chime when CROSSING up over 80) ---
+# Cross-platform: use paplay on Linux, PowerShell beep on Windows, fallback silent.
+play_alarm() {
+  if command -v paplay >/dev/null 2>&1; then
+    paplay /usr/share/sounds/freedesktop/stereo/dialog-warning.oga >/dev/null 2>&1 &
+  elif command -v powershell >/dev/null 2>&1; then
+    powershell -c '[console]::beep(880,200)' >/dev/null 2>&1
+  fi
+}
 state_file="/tmp/claude-ctx-alarm-${session}.state"
 last="$(cat "$state_file" 2>/dev/null || echo 0)"
 if [ "$pct_int" -ge 80 ] && [ "$last" -lt 80 ]; then
-  paplay /usr/share/sounds/freedesktop/stereo/dialog-warning.oga >/dev/null 2>&1 &
+  play_alarm
 fi
 echo "$pct_int" > "$state_file"
 

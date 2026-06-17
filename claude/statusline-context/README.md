@@ -23,9 +23,9 @@ Claude Code 状态栏:实时上下文进度条 + 80% 越界提示音。
 
 ## 依赖
 
-- `jq`(必需):`sudo pacman -S jq`
+- `jq`(必需):`sudo pacman -S jq` (Linux) 或 `winget install jq` (Windows)
 - `paplay` + freedesktop 音效(可选,仅提示音):Arch 上由 `libpulse` / PipeWire 提供。
-  缺失只是没声音,进度条照常工作。
+  Windows 上自动使用 PowerShell `[console]::beep()` 兜底。缺失只是没声音,进度条照常工作。
 
 ## 自定义
 

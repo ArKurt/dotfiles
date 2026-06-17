@@ -23,11 +23,11 @@ cd ~/dotfiles
 
 ## 工具清单 📦
 
-| 工具 | 说明 |
-|------|------|
-| [`claude/statusline-context`](claude/statusline-context/) | Claude Code 状态栏:实时上下文进度条 + 80% 提示音 |
-| [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) |
-| [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) |
+| 工具 | 说明 | 跨平台 |
+|------|------|--------|
+| [`claude/statusline-context`](claude/statusline-context/) | Claude Code 状态栏:实时上下文进度条 + 80% 提示音 | Linux ✓ / Windows ✓ |
+| [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) | Linux ✓ / Windows ✓ |
+| [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) | Linux ✓
 
 ## 验证过哪些 ✅
 
@@ -50,6 +50,6 @@ cd ~/dotfiles
 
 ## 约定 📋
 
-- 主战场:Arch Linux。多数工具在别的平台也能跑;平台相关的点(比如音效路径)
-  在各工具自己的 README 里写清楚。
+- 主战场:Arch Linux + Windows。安装器在 Linux/Windows 上自动适配(如提示音:
+  Linux 用 `paplay`,Windows 用 PowerShell `[console]::beep()`)。
 - 安装器只新增 / 合并,绝不盲目覆盖你已有的 hooks、permissions 等。

@@ -17,6 +17,7 @@ Claude Code 每回合结束时「叮」一声 —— 跑长任务时不用盯着
 
 - `jq`(必需,用于安全合并)
 - `paplay` + freedesktop 音效(Arch 上由 PipeWire / PulseAudio 提供)。
+  Windows 上安装器自动使用 PowerShell `[console]::beep()`。
   命令带 `|| true`,所以缺播放器也只是没声音,绝不会让回合报错。
 
 ## 自定义

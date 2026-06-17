@@ -12,7 +12,7 @@ SETTINGS="$CLAUDE_DIR/settings.json"
 
 # --- dependency check ---
 if ! command -v jq >/dev/null 2>&1; then
-  echo "✗ jq not found. Install it first:  sudo pacman -S jq" >&2
+  echo "✗ jq not found. Install it:  sudo pacman -S jq (Linux)  |  winget install jq (Windows)" >&2
   exit 1
 fi
 
@@ -36,4 +36,4 @@ jq --arg cmd "bash $SCRIPT_DST" \
 echo "✓ statusLine merged → $SETTINGS"
 echo
 echo "Done. Open a new Claude Code session (or /resume) to see the bar."
-echo "Note: the 80% chime uses paplay + a freedesktop .oga (PulseAudio/PipeWire)."
+echo "Note: the 80% chime uses paplay (Linux) or PowerShell [console]::beep (Windows)."
