@@ -128,3 +128,10 @@ curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
 - **某进程没走代理** —— 它发包的真实进程名不在规则里,去「连接」页看名字补上。
 - **本地服务被代理影响** —— 确认 `no_proxy` 含 `localhost,127.0.0.1`。
 - **改了 Merge 不生效** —— 没重新激活配置;切走再切回订阅,或点一次激活。
+
+---
+
+## 📱 移动端(草稿,WIP)
+
+Android / iOS 的同款方案整理在 [`mobile.DRAFT.md`](mobile.DRAFT.md)——**尚未全部验证完**
+(Android 代理路由已通过,ChatGPT 登录问题与 iOS 实测待办)。验证完成后会晋升到本文正文。
