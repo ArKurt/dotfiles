@@ -29,6 +29,7 @@ cd ~/dotfiles
 | [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) | Linux ✓ / Windows ✓ |
 | [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) | Linux ✓ / Windows ✓
 | [`claude/sound-on-push`](claude/sound-on-push/) | `git push` 成功时播凯旋小号曲(PostToolUse 钩子,自带音源,失败不响) | Linux ✓ / Windows ✓
+| [`proxy`](proxy/) | 选择性代理:只让编码 Agent / 终端走代理,其余按规则分流(Clash TUN + 进程规则 + shell 兜底) | Linux ✓ / Windows ✓ |
 
 ## 验证过哪些 ✅
 
