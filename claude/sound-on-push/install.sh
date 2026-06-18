@@ -3,7 +3,8 @@
 # Bash hook). Ships its own audio so it's reproducible across machines.
 #
 # Gating, all decided at hook runtime from the hook's stdin JSON:
-#   - only fires when the Bash command contains "git push"
+#   - only fires when the command actually invokes "git push" (anchored so
+#     `echo "git push"` won't trigger it), and NOT a `--dry-run` / `-n` push
 #   - stays SILENT if the push output shows failure (rejected / fatal: /
 #     failed to push / permission denied / authentication failed / could not
 #     read) — we don't celebrate a failed push
@@ -33,7 +34,7 @@ echo "✓ sound → $SND_DST"
 # Player fallback: mpv → ffplay → mpg123 → Windows PowerShell beep. paplay can't
 # decode mp3, so it's intentionally skipped. `|| true` so a missing player never
 # fails the turn.
-SOUND_CMD='input=$(cat); printf "%s" "$input" | jq -r ".tool_input.command" | grep -q "git push" || exit 0; printf "%s" "$input" | jq -r ".tool_response | tostring" | grep -qiE "rejected|fatal:|failed to push|permission denied|authentication failed|could not read" && exit 0; { command -v mpv >/dev/null && mpv --no-video --really-quiet "$HOME/.claude/sounds/push-done.mp3"; } || { command -v ffplay >/dev/null && ffplay -nodisp -autoexit -loglevel quiet "$HOME/.claude/sounds/push-done.mp3"; } || { command -v mpg123 >/dev/null && mpg123 -q "$HOME/.claude/sounds/push-done.mp3"; } || { case "$(uname -s)" in *MINGW*|*CYGWIN*|*MSYS*) powershell -c "[console]::beep(880,200)";; esac; } || true'
+SOUND_CMD='input=$(cat); cmd=$(printf "%s" "$input" | jq -r ".tool_input.command"); printf "%s" "$cmd" | grep -qE "(^|[;&|] *)git +push" || exit 0; printf "%s" "$cmd" | grep -qE -- "--dry-run|[[:space:]]-n([[:space:]]|$)" && exit 0; printf "%s" "$input" | jq -r ".tool_response | tostring" | grep -qiE "rejected|fatal:|failed to push|permission denied|authentication failed|could not read" && exit 0; { command -v mpv >/dev/null && mpv --no-video --really-quiet "$HOME/.claude/sounds/push-done.mp3"; } || { command -v ffplay >/dev/null && ffplay -nodisp -autoexit -loglevel quiet "$HOME/.claude/sounds/push-done.mp3"; } || { command -v mpg123 >/dev/null && mpg123 -q "$HOME/.claude/sounds/push-done.mp3"; } || { case "$(uname -s)" in *MINGW*|*CYGWIN*|*MSYS*) powershell -c "[console]::beep(880,200)";; esac; } || true'
 
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
 if ! jq -e . "$SETTINGS" >/dev/null 2>&1; then

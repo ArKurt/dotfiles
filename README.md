@@ -4,7 +4,9 @@
 哪台机器想用就 `clone` 下来一键装上。
 
 每个工具都是一个自带 `install.sh` 的小文件夹。安装器都**幂等**(重复跑没事)、
-而且**只加不砸**——绝不覆盖你已有的配置。
+而且**只加不砸**——hooks、permissions 等都是合并追加,绝不覆盖你已有的配置。
+(唯一例外:`statusLine` 是单值键而非列表,装 statusline-context 即表示你要用它,
+所以会替换原有 statusLine——但会**先把旧命令打印出来**,方便你想恢复时找回。)
 
 ## 怎么取用 🚀
 
@@ -26,10 +28,14 @@ cd ~/dotfiles
 | 工具 | 说明 | 跨平台 |
 |------|------|--------|
 | [`claude/statusline-context`](claude/statusline-context/) | Claude Code 状态栏:实时上下文进度条 + 80% 提示音 | Linux ✓ / Windows ✓ |
-| [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) | Linux ✓ / Windows ✓ |
-| [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) | Linux ✓ / Windows ✓
-| [`claude/sound-on-push`](claude/sound-on-push/) | `git push` 成功时播凯旋小号曲(PostToolUse 钩子,自带音源,失败不响) | Linux ✓ / Windows ✓
+| [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) | Linux ✓ / Windows ✓(beep) |
+| [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) | Linux ✓ / Windows ⚠️(beep)
+| [`claude/sound-on-push`](claude/sound-on-push/) | `git push` 成功时播凯旋小号曲(PostToolUse 钩子,自带音源,失败不响) | Linux ✓ / Windows ⚠️(beep)
 | [`proxy`](proxy/) | 选择性代理:只让编码 Agent / 终端走代理,其余按规则分流(Clash TUN + 进程规则 + shell 兜底) | Linux ✓ / Windows ✓ |
+
+> **关于「自带音源」:** notify-sound / sound-on-push 自带的 `.mp3` 需要系统里有
+> `mpv` / `ffplay` / `mpg123` 之一才能播放(Linux 一般装一个即可)。Windows 上若没有
+> 这些播放器,会退化成 PowerShell `[console]::beep()` 蜂鸣——**听得到提示,但不是自带音效**。
 
 ## 验证过哪些 ✅
 
