@@ -131,7 +131,65 @@ curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
 
 ---
 
-## 📱 移动端(草稿,WIP)
+## 📱 移动端(Android / iOS,均已验证)
 
-Android / iOS 的同款方案整理在 [`mobile.DRAFT.md`](mobile.DRAFT.md)——**尚未全部验证完**
-(Android 代理路由已通过,ChatGPT 登录问题与 iOS 实测待办)。验证完成后会晋升到本文正文。
+桌面是「系统代理 / TUN」二选一;**手机端(Android VpnService、iOS Network Extension)
+本身就以 VPN 形式运行——你点「启动」那一下就等于桌面的 TUN**,流量已被透明接管。
+所以手机上找不到独立的 TUN 开关是正常的,不影响使用。
+
+目标同桌面:**指定流量强制走代理,其余按规则分流**。两平台认流量的机制不同:
+
+| 平台 | 客户端 | 怎么匹配 | 规则类型 |
+|---|---|---|---|
+| Android | FlClash / Clash Meta | 按**包名**(同桌面进程规则) | `PROCESS-NAME` |
+| iOS | Shadowrocket | iOS 不暴露 App 身份,只能按**域名** | `DOMAIN-SUFFIX` / `RULE-SET` |
+
+### Android(FlClash)
+
+1. 出站模式选 **规则**,启动 VPN(这就是 TUN);**「TUN 模式」开关不用额外开**。
+2. 进 **订阅 → 覆写**(向导式表单,非手写 YAML),加一条:
+   - 规则名称 → `PROCESS-NAME`(**别选** `PROCESS-PATH` / `-REGEX`)
+   - 匹配值 → 安卓**包名**(如 ChatGPT 的 `com.openai.chatgpt`,纯包名无引号)
+   - 策略 → `<PROXY_GROUP>`
+   - 等价于 `PROCESS-NAME,com.openai.chatgpt,<PROXY_GROUP>`
+3. 保存后**回订阅页重新激活一次**配置;其余 App 自动按订阅规则分流。
+
+**「应用访问控制」(分应用代理)三种模式别设错:**
+- **关闭** → 所有 App 都进 VPN(配合规则模式,这是**最终想要的状态**)。
+- 白名单 → 只有勾选的 App 进 VPN(适合**隔离测试单个 App**,不是最终态)。
+- 黑名单 → 勾选的 App 不进 VPN(适合排除银行 / 国内 App)。
+
+> 验证:FlClash「连接」页应显示 `auth.openai.com → com.openai.chatgpt → <某美区节点> → <PROXY_GROUP>`,进程规则命中、走了正确地区节点。
+
+### iOS(Shadowrocket)
+
+iOS 拿不到 App 身份,改成**把目标服务的域名指向代理**,效果一样:
+
+1. **全局路由**选 **配置 / Config**(规则模式);**别用 全局 / Proxy**,否则一刀切全代理。
+2. 加 OpenAI 域名规则,二选一:
+   - **规则集(推荐,域名自动更新)** —— 在 `[Rule]` 段加:
+     ```
+     RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/OpenAI/OpenAI.list,<PROXY_GROUP>
+     ```
+   - **手动域名规则:**
+     ```
+     DOMAIN-SUFFIX,openai.com,<PROXY_GROUP>
+     DOMAIN-KEYWORD,openai,<PROXY_GROUP>
+     DOMAIN-SUFFIX,chatgpt.com,<PROXY_GROUP>
+     DOMAIN-SUFFIX,oaistatic.com,<PROXY_GROUP>
+     DOMAIN-SUFFIX,oaiusercontent.com,<PROXY_GROUP>
+     DOMAIN-SUFFIX,sora.com,<PROXY_GROUP>
+     ```
+   - 手动加规则时,「扩展匹配」「预匹配」两个开关**保持默认关闭**——域名规则用不上它们。
+3. 其余流量继续按订阅规则分流。
+
+> 验证:用 ChatGPT 发条消息,Shadowrocket 连接日志里 `*.openai.com` / `chatgpt.com` 的**策略列应是 `<PROXY_GROUP>`、节点在美区**;国内站应走 `DIRECT`。
+
+### ⚠️ 两个共同的坑
+
+1. **节点地区** —— OpenAI 封香港 / 大陆。`<PROXY_GROUP>` 必须停在**美 / 日 / 新 / 台 / 英**等支持区,
+   别用可能飘到香港的 `Auto`,否则走了代理也报 `unsupported_country`。
+   (`<PROXY_GROUP>` 是个可切换节点的组:规则负责把流量送进去,你要保证它的**出口节点**在支持区。)
+2. **ChatGPT「Continue with Google」登录失败**(与代理无关) —— 报 Play 服务 / `-9` 之类,
+   是 Google 登录 / Play Integrity 的问题,不是代理。**改用邮箱 + 密码登录**即可绕过
+   (只用 Google 注册过的账号,先在登录页「忘记密码」给邮箱设个密码)。
