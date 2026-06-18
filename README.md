@@ -31,7 +31,7 @@ cd ~/dotfiles
 | [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) | Linux ✓ / Windows ✓(beep) |
 | [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) | Linux ✓ / Windows ⚠️(beep)
 | [`claude/sound-on-push`](claude/sound-on-push/) | `git push` 成功时播凯旋小号曲(PostToolUse 钩子,自带音源,失败不响) | Linux ✓ / Windows ⚠️(beep)
-| [`proxy`](proxy/) | 选择性代理:只让编码 Agent / 终端走代理,其余按规则分流(Clash TUN + 进程规则 + shell 兜底) | Linux ✓ / Windows ✓ |
+| [`proxy`](proxy/) | 选择性代理:只让编码 Agent / 终端走代理,其余按规则分流(Clash TUN + 进程规则 + shell 兜底);移动端同款方案见 proxy 文档 | 桌面 Linux ✓ / Windows ✓ ・ 移动端 Android ✓ / iOS ✓ |
 
 > **关于「自带音源」:** notify-sound / sound-on-push 自带的 `.mp3` 需要系统里有
 > `mpv` / `ffplay` / `mpg123` 之一才能播放(Linux 一般装一个即可)。Windows 上若没有
