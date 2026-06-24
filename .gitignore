@@ -1,2 +1,5 @@
 *.swp
 .DS_Store
+
+# 万象语法模型等大二进制不入库(由 rime/install.sh 自动下载)
+*.gram
