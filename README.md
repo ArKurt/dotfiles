@@ -27,7 +27,7 @@ cd ~/dotfiles
 
 | 工具 | 说明 | 跨平台 |
 |------|------|--------|
-| [`claude/statusline-context`](claude/statusline-context/) | Claude Code 状态栏:实时上下文进度条 + 80% 提示音 | Linux ✓ / Windows ✓ |
+| [`claude/statusline-context`](claude/statusline-context/) | Claude Code 状态栏:上下文进度条 + 80% 提示音 + 思考等级,可选预算/用量行(成本·改动行数·5h 与周用量) | Linux ✓ / Windows ✓ |
 | [`claude/sound-on-stop`](claude/sound-on-stop/) | Claude Code 每回合结束时「叮」一声(Stop 钩子) | Linux ✓ / Windows ✓(beep) |
 | [`claude/notify-sound`](claude/notify-sound/) | Claude 停下来等你时播放提示音(Notification 钩子,自带音源) | Linux ✓ / Windows ⚠️(beep)
 | [`claude/sound-on-push`](claude/sound-on-push/) | `git push` 成功时播凯旋小号曲(PostToolUse 钩子,自带音源,失败不响) | Linux ✓ / Windows ⚠️(beep)
