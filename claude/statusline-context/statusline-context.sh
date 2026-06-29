@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # Claude Code status line: live context meter + 80% warning sound,
-# plus optional budget/usage line (session cost, lines changed, 5h & weekly
-# rate-limit usage with reset countdown). All extra data comes straight from
-# the status-line stdin JSON (cost.* / rate_limits.*) — zero deps, no network.
+# plus an optional, visually-parallel budget/usage line (5h usage meter,
+# session cost, lines changed, weekly usage) and the current thinking level.
+# All extra data comes straight from the status-line stdin JSON
+# (cost.* / rate_limits.* / effort.level) — zero deps, no network.
 #
 # Toggles (env; "0" disables, default in brackets):
 #   CLAUDE_SL_COST        [on]  session $cost + lines +added/-removed
-#   CLAUDE_SL_5H          [on]  5-hour usage % + reset countdown
+#   CLAUDE_SL_DURATION    [off] session wall-clock duration (⏱)
+#   CLAUDE_SL_5H          [on]  5-hour usage meter + reset countdown
 #   CLAUDE_SL_WEEKLY      [off] 7-day usage %
 #   CLAUDE_SL_USABLE      [off] context % against autocompact-usable window
 #   CLAUDE_CTX_AUTOCOMPACT_PCT [8] reserve % for usable mode (approx; tunable)
 #   CLAUDE_SL_MULTILINE   [on]  render budget/usage on a 2nd line
-#   CLAUDE_SL_THINKING    [on]  current thinking/effort level (🧠high)
+#   CLAUDE_SL_THINKING    [on]  current thinking/effort level
+#   CLAUDE_SL_THINK_ICON  [💡]  icon shown before the thinking level
 #   CLAUDE_CTX_WINDOW           override context window size (existing)
 
 input="$(cat)"
@@ -28,10 +31,16 @@ model="$(jq -r '.model.display_name // .model.id // empty' <<<"$input")"
 cost_usd="$(jq -r '.cost.total_cost_usd // empty' <<<"$input")"
 lines_add="$(jq -r '.cost.total_lines_added // empty' <<<"$input")"
 lines_del="$(jq -r '.cost.total_lines_removed // empty' <<<"$input")"
+dur_ms="$(jq -r '.cost.total_duration_ms // empty' <<<"$input")"
 h5_pct="$(jq -r '.rate_limits.five_hour.used_percentage // empty' <<<"$input")"
 h5_reset="$(jq -r '.rate_limits.five_hour.resets_at // empty' <<<"$input")"
 d7_pct="$(jq -r '.rate_limits.seven_day.used_percentage // empty' <<<"$input")"
 think_level="$(jq -r '.effort.level // empty' <<<"$input")"   # live thinking level (newer field)
+
+# --- ANSI palette ---
+ESC=$'\033'
+reset="${ESC}[0m"; dim="${ESC}[2m"
+C_GREEN="${ESC}[32m"; C_YELLOW="${ESC}[33m"; C_RED="${ESC}[31m"; C_COOL="${ESC}[38;5;141m"  # light violet (EVA-01 初号机-ish); tweak 141 → 99 deeper / 183 lighter
 
 # --- helpers ---
 # on VAR DEFAULT(0/1): true if the toggle is enabled
@@ -40,12 +49,25 @@ on() {
   if [ -z "$v" ]; then [ "$2" = "1" ]; return $?; fi
   [ "$v" != "0" ]
 }
-# zone_col PCT: ANSI color by usage zone (green <60, yellow 60-79, red >=80)
-zone_col() {
-  if   [ "$1" -ge 80 ]; then printf '\033[31m'
-  elif [ "$1" -ge 60 ]; then printf '\033[33m'
-  else                       printf '\033[32m'
+# meter PCT LABEL PALETTE(warm|cool): a 3-char-labelled 20-cell bar, colored
+# by zone (red >=80, yellow 60-79, else green[warm]/cyan[cool]); filled cells
+# in the zone color, empty cells dimmed. Labels pad to 3 so stacked bars align.
+meter() {
+  local p="$1" label="$2" palette="$3" c cells=20 filled i fb="" eb=""
+  if   [ "$p" -ge 80 ]; then c="$C_RED"
+  elif [ "$p" -ge 60 ]; then c="$C_YELLOW"
+  elif [ "$palette" = cool ]; then c="$C_COOL"
+  else                          c="$C_GREEN"
   fi
+  filled=$(( p * cells / 100 ))
+  [ "$filled" -gt "$cells" ] && filled="$cells"
+  [ "$filled" -lt 0 ] && filled=0
+  i=0
+  while [ "$i" -lt "$cells" ]; do
+    if [ "$i" -lt "$filled" ]; then fb="${fb}█"; else eb="${eb}░"; fi
+    i=$((i+1))
+  done
+  printf '%s%-3s %s%s%s%s %s%d%%%s' "$c" "$label" "$c" "$fb" "$dim" "$eb" "$c" "$p" "$reset"
 }
 # fmt_reset EPOCH: seconds-from-now as "Xh Ym" / "Nm" / "now"
 fmt_reset() {
@@ -55,6 +77,14 @@ fmt_reset() {
   [ "$diff" -le 0 ] && { printf 'now'; return; }
   h=$(( diff / 3600 )); m=$(( (diff % 3600) / 60 ))
   if [ "$h" -gt 0 ]; then printf '%dh%dm' "$h" "$m"; else printf '%dm' "$m"; fi
+}
+# fmt_dur MS: milliseconds as "Xh Ym" / "Nm" / "Ns"
+fmt_dur() {
+  local s=$(( $1 / 1000 ))
+  if   [ "$s" -ge 3600 ]; then printf '%dh%dm' $(( s/3600 )) $(( (s%3600)/60 ))
+  elif [ "$s" -ge 60 ];   then printf '%dm' $(( s/60 ))
+  else                         printf '%ds' "$s"
+  fi
 }
 
 # --- effective context window: env var > model detection > API report ---
@@ -84,7 +114,6 @@ pct_int="${pct%.*}"
 
 # --- usable-context mode: rescale % against the autocompact-usable window ---
 # Claude auto-compacts before the window is truly full, so raw % is optimistic.
-# usable window = size * (100 - reserve)/100; bar/%/alarm key off this instead.
 if on CLAUDE_SL_USABLE 0 && [ -n "$used" ] && [ -n "$size" ] && [ "$size" -gt 0 ] 2>/dev/null; then
   reserve="${CLAUDE_CTX_AUTOCOMPACT_PCT:-8}"
   usable_win=$(( size * (100 - reserve) / 100 ))
@@ -96,7 +125,6 @@ if on CLAUDE_SL_USABLE 0 && [ -n "$used" ] && [ -n "$size" ] && [ "$size" -gt 0 
 fi
 
 # --- 80% one-shot alarm (only chime when CROSSING up over 80) ---
-# Cross-platform: use paplay on Linux, PowerShell beep on Windows, fallback silent.
 play_alarm() {
   if command -v paplay >/dev/null 2>&1; then
     paplay /usr/share/sounds/freedesktop/stereo/dialog-warning.oga >/dev/null 2>&1 &
@@ -111,27 +139,6 @@ if [ "$pct_int" -ge 80 ] && [ "$last" -lt 80 ]; then
 fi
 echo "$pct_int" > "$state_file"
 
-# --- progress bar (20 cells) ---
-cells=20
-filled=$(( pct_int * cells / 100 ))
-[ "$filled" -gt "$cells" ] && filled=$cells
-bar=""
-i=0
-while [ "$i" -lt "$cells" ]; do
-  if [ "$i" -lt "$filled" ]; then bar="${bar}█"; else bar="${bar}░"; fi
-  i=$((i+1))
-done
-
-# --- color by zone (ANSI): green <60, yellow 60-79, red >=80 ---
-if   [ "$pct_int" -ge 80 ]; then col=$'\033[31m'   # red
-elif [ "$pct_int" -ge 60 ]; then col=$'\033[33m'   # yellow
-else                              col=$'\033[32m'   # green
-fi
-reset=$'\033[0m'
-dim=$'\033[2m'
-green=$'\033[32m'
-red=$'\033[31m'
-
 # --- token count vs window, human-readable (e.g. 210k/1000k) ---
 tok=""
 if [ -n "$used" ]; then
@@ -143,13 +150,13 @@ if [ -n "$used" ]; then
   fi
 fi
 
-# --- line 1: context core (unchanged look) ---
-line1="${col}ctx ${bar} ${pct_int}%${reset}"
+# --- line 1: context core (warm meter + token/branch/model/thinking) ---
+line1="$(meter "$pct_int" "ctx" warm)"
 [ -n "$tok" ] && line1="${line1} ${dim}${tok}${reset}"
 # ⚠200k+ only matters when the window itself is ~200k; on a 1M-context model
 # (size much larger) the fixed 200k flag is noise — suppress it there.
 if [ "$over200k" = "true" ] && { [ -z "$size" ] || [ "$size" -le 220000 ]; }; then
-  line1="${line1} ${col}⚠200k+${reset}"
+  line1="${line1} ${C_RED}⚠200k+${reset}"
 fi
 [ -n "$branch" ] && line1="${line1} ${dim}⎇ ${branch}${reset}"
 [ -n "$model" ] && line1="${line1} ${dim}${model}${reset}"
@@ -157,10 +164,17 @@ fi
 if on CLAUDE_SL_THINKING 1; then
   tl="$think_level"
   [ -z "$tl" ] && tl="$(jq -r '.effortLevel // empty' ~/.claude/settings.json 2>/dev/null)"
-  [ -n "$tl" ] && line1="${line1} ${dim}🧠${tl}${reset}"
+  [ -n "$tl" ] && line1="${line1} ${dim}${CLAUDE_SL_THINK_ICON:-💡}${tl}${reset}"
 fi
 
-# --- line 2: budget / usage (all optional, all from stdin) ---
+# --- line 2: budget / usage (cool 5h meter, mirrors line 1; then cost group) ---
+# 5-hour usage meter + reset countdown (parallel to the ctx meter, cool color)
+h5_seg=""
+if on CLAUDE_SL_5H 1 && [ -n "$h5_pct" ]; then
+  h5i="${h5_pct%.*}"; [ -z "$h5i" ] && h5i=0
+  h5_seg="$(meter "$h5i" "5h" cool)"
+  [ -n "$h5_reset" ] && h5_seg="${h5_seg} ${dim}↺$(fmt_reset "${h5_reset%.*}")${reset}"
+fi
 # session cost + lines changed
 cost_seg=""
 if on CLAUDE_SL_COST 1; then
@@ -171,30 +185,34 @@ if on CLAUDE_SL_COST 1; then
   fi
   la="${lines_add:-0}"; ld="${lines_del:-0}"
   if [ "$la" -gt 0 ] 2>/dev/null || [ "$ld" -gt 0 ] 2>/dev/null; then
-    cs="${cs:+$cs }${green}+${la}${reset}/${red}-${ld}${reset}"
+    cs="${cs:+$cs }${C_GREEN}+${la}${reset}/${C_RED}-${ld}${reset}"
   fi
   cost_seg="$cs"
 fi
-# 5-hour rate-limit usage + reset countdown
-h5_seg=""
-if on CLAUDE_SL_5H 1 && [ -n "$h5_pct" ]; then
-  h5i="${h5_pct%.*}"; [ -z "$h5i" ] && h5i=0
-  c="$(zone_col "$h5i")"
-  h5_seg="${c}5h ${h5i}%${reset}"
-  [ -n "$h5_reset" ] && h5_seg="${h5_seg} ${dim}↺$(fmt_reset "${h5_reset%.*}")${reset}"
+# session wall-clock duration (optional, default off)
+dur_seg=""
+if on CLAUDE_SL_DURATION 0 && [ -n "$dur_ms" ] && [ "$dur_ms" -gt 0 ] 2>/dev/null; then
+  dur_seg="${dim}⏱$(fmt_dur "$dur_ms")${reset}"
 fi
-# 7-day (weekly) usage
+# 7-day (weekly) usage — compact, zone-colored
 d7_seg=""
 if on CLAUDE_SL_WEEKLY 0 && [ -n "$d7_pct" ]; then
   d7i="${d7_pct%.*}"; [ -z "$d7i" ] && d7i=0
-  c="$(zone_col "$d7i")"
-  d7_seg="${c}7d ${d7i}%${reset}"
+  if   [ "$d7i" -ge 80 ]; then dc="$C_RED"; elif [ "$d7i" -ge 60 ]; then dc="$C_YELLOW"; else dc="$C_COOL"; fi
+  d7_seg="${dc}7d ${d7i}%${reset}"
 fi
 
-line2=""
-for s in "$cost_seg" "$h5_seg" "$d7_seg"; do
-  [ -n "$s" ] && line2="${line2:+$line2 }$s"
-done
+# assemble line 2: 5h meter as the anchor, cost/weekly as a dim-· separated tail
+tail=""
+[ -n "$cost_seg" ] && tail="$cost_seg"
+[ -n "$dur_seg" ]  && tail="${tail:+$tail  }$dur_seg"
+[ -n "$d7_seg" ]   && tail="${tail:+$tail  }$d7_seg"
+line2="$h5_seg"
+if [ -n "$line2" ] && [ -n "$tail" ]; then
+  line2="${line2}  ${dim}│${reset}  ${tail}"
+elif [ -n "$tail" ]; then
+  line2="$tail"
+fi
 
 # --- emit: multi-line when enabled & line 2 has content, else single line ---
 if on CLAUDE_SL_MULTILINE 1 && [ -n "$line2" ]; then
