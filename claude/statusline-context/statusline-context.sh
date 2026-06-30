@@ -173,7 +173,7 @@ h5_seg=""
 if on CLAUDE_SL_5H 1 && [ -n "$h5_pct" ]; then
   h5i="${h5_pct%.*}"; [ -z "$h5i" ] && h5i=0
   h5_seg="$(meter "$h5i" "5h" cool)"
-  [ -n "$h5_reset" ] && h5_seg="${h5_seg} ${dim}↺$(fmt_reset "${h5_reset%.*}")${reset}"
+  [ -n "$h5_reset" ] && h5_seg="${h5_seg} ${dim}↺ $(fmt_reset "${h5_reset%.*}")${reset}"
 fi
 # session cost + lines changed
 cost_seg=""
