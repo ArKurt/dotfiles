@@ -5,6 +5,14 @@
 
 ## 装这个
 
+先装万象模型(AUR·官方常规渠道,**随系统 `yay -Syu` 自动更新**):
+
+```bash
+yay -S rime-wanxiang-gram-zh-hans     # 或 paru -S
+```
+
+再部署配置:
+
 ```bash
 ./install.sh        # 在 dotfiles 根目录:./install.sh rime
 ```
@@ -13,22 +21,26 @@
 
 1. 把 `default.custom.yaml` / `rime_ice.custom.yaml` 部署到 `~/.local/share/fcitx5/rime/`
    (已存在且不同 → 先备份 `.bak` 再写,绝不静默覆盖)
-2. 下载万象语法模型 `wanxiang-lts-zh-hans.gram`(**~401MB,不入 git,首次自动拉取**)
+2. 校验万象语法模型是否已由 AUR 装到 `/usr/share/rime-data/`(缺则提示你 `yay -S`);
+   顺手删掉历史上手动下到用户目录的旧模型(它会遮蔽 AUR 版、导致永不更新)
 3. 用 `rime_deployer` 重新部署,并重载 fcitx5
 
-幂等:重跑会跳过相同配置、不重下模型。
+幂等:重跑会跳过相同配置。**模型走 AUR、随 `yay/paru -Syu` 自动更新**,不由本脚本下。
 
 ## 为什么模型不进 git ⚠️
 
-`wanxiang-lts-zh-hans.gram` 有 **401MB**,远超 GitHub 单文件 100MB 上限,且大二进制会把仓库撑爆。
-所以仓库里只放**配置**,模型由 `install.sh` 从[官方 release](https://github.com/amzxyz/RIME-LMDG/releases/tag/LTS) 现拉。
+`wanxiang-lts-zh-hans.gram` 有 **~400MB**,远超 GitHub 单文件 100MB 上限,大二进制也会把仓库撑爆。
+所以仓库只放**配置**,模型交给 **AUR 包 [`rime-wanxiang-gram-zh-hans`](https://aur.archlinux.org/packages/rime-wanxiang-gram-zh-hans)**——它从[官方 release](https://github.com/amzxyz/RIME-LMDG/releases/tag/LTS) 拉、装到 `/usr/share/rime-data/`、带 SHA256 校验,**随 `yay/paru -Syu` 自动更新**。
+
+> 早先版本用 `install.sh` 手动 `curl` 下模型——只下一次、之后**从不更新**(LTS 是滚动 tag,模型常更新,但脚本"存在就跳过")。argamo 因此冻结数周而 arnino 常新。改走 AUR 后随系统自动跟上。
 
 ## 依赖
 
 - `fcitx5-rime`、雾凇方案源在 `/usr/share/rime-data`(`rime_ice.schema.yaml` 等)
-- `librime`(提供 `rime_deployer`)、`curl`
+- `librime`(提供 `rime_deployer`)
+- **AUR 包 `rime-wanxiang-gram-zh-hans`**(万象语法模型·`yay -S` 装·随系统更新)
 
-缺啥脚本会清楚报给你 + 给出 `pacman` 安装命令。
+缺啥脚本会清楚报给你 + 给出安装命令。
 
 ## 文件说明
 
@@ -47,10 +59,13 @@
 
 ## 更新万象模型 🔄
 
+模型走 AUR,**跟系统更新一起走**,不用手动折腾:
+
 ```bash
-rm ~/.local/share/fcitx5/rime/wanxiang-lts-zh-hans.gram
-./install.sh        # 重新拉取最新模型并部署
+yay -Syu            # 或 paru -Syu;万象模型有新版会一并更新
 ```
+
+更新后(模型变了)跑一次 `./install.sh`,或托盘「重新部署」,让新模型生效。
 
 ## Windows 📎
 

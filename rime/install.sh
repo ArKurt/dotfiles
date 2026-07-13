@@ -3,10 +3,10 @@
 #
 # 干什么:
 #   1. 把 default.custom.yaml / rime_ice.custom.yaml 部署到 fcitx5 的 RIME 用户目录
-#   2. 下载万象语法模型 wanxiang-lts-zh-hans.gram(~401MB,不入 git,首次自动拉取)
+#   2. 校验万象语法模型(由 AUR 包 rime-wanxiang-gram-zh-hans 提供,随 yay/paru -Syu 更新)
 #   3. 用 rime_deployer 重新部署,并重载 fcitx5
 #
-# 幂等 + 只加不砸:配置相同则跳过;不同则先备份 .bak 再写;模型已在则不重下。
+# 幂等 + 只加不砸:配置相同则跳过;不同则先备份 .bak 再写;模型走 AUR、不由本脚本下。
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,24 +56,24 @@ deploy_file() {
 deploy_file default.custom.yaml
 deploy_file rime_ice.custom.yaml
 
-# ── 下载万象语法模型(不入 git,首次自动拉取)──────────────
-GRAM="$RIME_DIR/$GRAM_NAME"
-if [ -f "$GRAM" ] && [ "$(stat -c%s "$GRAM")" -ge "$GRAM_MIN_BYTES" ]; then
-  echo "✓ 万象模型已就位($(( $(stat -c%s "$GRAM") / 1024 / 1024 ))MB),跳过下载"
+# ── 万象语法模型:走 AUR(官方常规渠道·随 yay/paru -Syu 自动更新)──
+# 模型由 AUR 包 rime-wanxiang-gram-zh-hans 提供,装到 /usr/share/rime-data/。
+# 不再由本脚本手动下载 —— 手动下的永远不会更新,会一直冻结在初次那版
+#(踩过的坑:argamo 模型冻结数周而 arnino 常新)。
+SHARED_GRAM="$SHARED_DIR/$GRAM_NAME"
+STALE_GRAM="$RIME_DIR/$GRAM_NAME"
+# 清掉历史上手动下到用户目录的旧模型(存在则会遮蔽 AUR 共享版,导致永不更新)
+if [ -f "$STALE_GRAM" ]; then
+  echo "⚠ 用户目录有手动下载的旧模型,会遮蔽 AUR 共享版 —— 删除:"
+  rm -v "$STALE_GRAM"
+fi
+if [ -f "$SHARED_GRAM" ] && [ "$(stat -c%s "$SHARED_GRAM")" -ge "$GRAM_MIN_BYTES" ]; then
+  echo "✓ 万象模型已由 AUR 提供($(( $(stat -c%s "$SHARED_GRAM")/1024/1024 ))MB @ $SHARED_DIR·随系统更新)"
 else
-  echo "↓ 下载万象语法模型(~401MB,首次较慢,支持断点续传)..."
-  curl -L --fail -C - -o "$GRAM" "$GRAM_URL"
-  sz=$(stat -c%s "$GRAM" 2>/dev/null || echo 0)
-  if [ "$sz" -lt "$GRAM_MIN_BYTES" ]; then
-    echo "✗ 模型下载不完整($((sz/1024/1024))MB),重跑本脚本会断点续传。" >&2
-    exit 1
-  fi
-  # 校验文件头魔数,确认不是 HTML 错误页
-  if [ "$(head -c 13 "$GRAM")" != "Rime::Grammar" ]; then
-    echo "✗ 模型文件头不对(可能下到了错误页),删掉重下:rm '$GRAM'" >&2
-    exit 1
-  fi
-  echo "✓ 万象模型下载完成($((sz/1024/1024))MB)"
+  echo "✗ 未找到万象模型 —— 请装 AUR 包(官方常规渠道,随 yay/paru -Syu 更新):" >&2
+  echo "    yay -S rime-wanxiang-gram-zh-hans" >&2
+  echo "  装完重跑本脚本。" >&2
+  exit 1
 fi
 
 # ── 重新部署 + 重载 ───────────────────────────────────────
@@ -91,4 +91,4 @@ fi
 
 echo
 echo "完成!切到雾凇拼音,打一句长拼音(如 faguangmogubujinjinhuifaguang)验证整句联想是否变准。"
-echo "重跑本脚本是安全的(相同配置跳过、模型不重下)。"
+echo "重跑本脚本是安全的(相同配置跳过、模型由 AUR 管·随 yay/paru -Syu 更新)。"
