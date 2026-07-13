@@ -1,9 +1,17 @@
 patch:
-  ascii_composer:
-    good_old_caps_lock: true
+  # 雾凇推荐基线（保留 argamo 原有）
+  __include: rime_ice_suggestion:/
+  # —— 并入 dotfiles 仓库版 ——
+  "ascii_composer/good_old_caps_lock": true
   schema_list:
     - schema: rime_ice
     - schema: luna_pinyin_simp
     - schema: double_pinyin_flypy
     - schema: bopomofo
   "menu/page_size": 6
+  # —— 保留 argamo 原有：逗号/句号翻页 ——
+  "key_binder/bindings/+":
+    - { when: paging, accept: comma, send: Page_Up }
+    - { when: has_menu, accept: period, send: Page_Down }
+    - { when: has_menu, accept: minus, send: Page_Up }
+    - { when: has_menu, accept: equal, send: Page_Down }
