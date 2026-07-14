@@ -12,8 +12,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# discover tools: any */install.sh except this top-level one
-mapfile -t INSTALLERS < <(find "$ROOT" -mindepth 2 -maxdepth 3 -name install.sh | sort)
+# discover tools: any */install.sh except this top-level one.
+# Do not use mapfile/readarray: macOS still ships Bash 3.2, which has neither.
+INSTALLERS=()
+while IFS= read -r inst; do
+  INSTALLERS+=("$inst")
+done < <(find "$ROOT" -mindepth 2 -maxdepth 3 -name install.sh | sort)
 
 list() {
   echo "Available tools:"
