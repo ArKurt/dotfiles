@@ -1,13 +1,23 @@
 # selective-proxy 🧦
 
-让**指定的工具**(编码 Agent、终端 CLI)无条件走代理节点,其余流量(浏览器等)
-仍按订阅规则自动分流。适合在 VM / NAT 环境里:你的 AI Agent 需要"全局"才能联网,
-但又不想把整机都塞进代理。
+给编码 Agent / 终端 CLI 提供可控代理。既支持「本机 Clash 按进程分流」,也支持
+「网络已经由旁路由透明代理、本机 Clash 只作临时兜底」；两种架构不要叠加。
 
 > 本文把具体的 Clash 客户端名和订阅/代理组名都隐去了。用的时候按下面的占位符替换:
 > - `<PROXY_GROUP>` —— 你订阅里那个能切节点的主代理组名(在客户端「代理」页看标题)。
 > - `<MIXED_PORT>` —— 你客户端的混合端口(常见默认 `7890`,本仓库示例脚本用 `7897`)。
 > - 客户端需使用 Mihomo/Clash Meta 内核,并支持 TUN 模式与进程规则。
+
+## 先选部署模式（互斥）
+
+| 模式 | 本机系统代理 | 本机 TUN | Shell 环境变量 | 适用场景 |
+|---|---:|---:|---:|---|
+| **A · 本机按进程分流** | 关 | 开 | 默认关、必要时兜底 | 设备直接接普通网关,需要本机 Clash 决定哪些进程代理 |
+| **B · 旁路由主路径** | 关 | 关 | 默认关、仅故障/A-B 测试时 `proxy` | 默认网关已经是 OpenWrt/ImmortalWrt 等透明代理旁路由 |
+
+**不要同时开本机系统代理、TUN、常驻 `*PROXY` 和旁路由透明代理。** 多层接管会让
+真实路径难以判断,还会让长驻进程硬依赖 `127.0.0.1:<MIXED_PORT>`；一旦关掉本机 Clash,
+这些旧进程立即断联,不会自动回退旁路由。
 
 ## 原理:两个互相独立的概念
 
@@ -17,7 +27,7 @@ Clash 里这两件事是分开的,搞混就会"一刀切":
 2. **流量怎么进 Clash** —— 由"系统代理开关"或"TUN 模式"决定。
 
 一刀切的做法是「系统代理 + 全局」,于是**所有** app 被强制代理。
-我们要的是 **TUN 模式 + 规则模式 + 进程优先规则**:
+模式 A 要的是 **TUN 模式 + 规则模式 + 进程优先规则**:
 TUN 透明接管全机流量(GUI 进程也能被规则匹配),规则模式让你写的
 `PROCESS-NAME` 规则生效,把点名的进程**强制丢给代理组**,其余流量继续走订阅规则。
 
@@ -27,7 +37,9 @@ TUN 透明接管全机流量(GUI 进程也能被规则匹配),规则模式让你
 | 终端里的 git / curl / npm / python 等 | 强制代理 ✅ |
 | 浏览器及其它 app | 按订阅规则自动分流(该直连直连、该代理代理)✅ |
 
-## 第一层:Clash 客户端配置(手动,跨平台通用)
+## 模式 A:Clash 客户端配置(手动,跨平台通用)
+
+> 这一节只适用于**本机按进程分流**。如果默认网关已指向旁路由,跳到模式 B。
 
 1. **关闭"系统代理"**开关 —— TUN 接管后不需要它,留着可能重复代理。
 2. **打开 TUN 模式(虚拟网卡)** —— 首次可能要安装服务 / 授权。
@@ -54,9 +66,10 @@ function main(config) {
 }
 ```
 
-如果其它客户端明确支持 `prepend-rules`,也可以使用该 YAML 扩展；它不是 Mihomo 核心字段,
-不能直接塞进最终配置。保存后重新激活订阅,再到「当前配置」确认这些规则真的出现在
-`rules:` 列表最前面。
+如果其它客户端明确支持 `prepend-rules`,可以把它作为生成阶段的扩展；它不是 Mihomo
+核心字段。**Clash Verge Rev 2.5.1 实测不能把 `prepend-rules` 留在最终配置顶层**——看似
+保存成功,实际不会插入 `rules:`。因此 Merge/「全局扩展覆写配置」为空是正常的,规则应放
+在「全局扩展脚本」。保存后重新激活订阅,再到「当前配置」确认规则真的位于 `rules:` 首部。
 
 > **关键:`PROCESS-NAME` 匹配的是真正发起连接的那个进程,不是终端窗口。**
 > 你在终端跑 `curl` 发包的是 `curl`,跑 `npm install` 发包的是 `node`。
@@ -70,7 +83,7 @@ function main(config) {
 > 看 Process/进程列；必要时用 `PROCESS-PATH` 精确匹配 App 内的 Helper,避免把所有
 > `node` 进程都送进代理。
 
-## 第二层:Shell 环境变量(终端兜底)
+## Shell 环境变量(两种模式都只作显式兜底)
 
 进程规则覆盖不到的终端工具,用环境变量再兜一层。安装器同时设置大小写两套变量,
 并使用 `socks5h` 让 SOCKS 连接的域名也交给代理解析。
@@ -89,11 +102,15 @@ proxy_status   # 查看环境变量和本地端口状态
 
 安装器在 macOS 写 `~/.zshrc`,Linux 则按当前 shell 写 `~/.bashrc` 或
 `~/.config/fish/config.fish`。重复安装会**更新自己的受管区块**,不会重复追加,也不会改
-其它配置。默认不开环境变量,TUN + 进程规则仍正常工作；确实需要每次启动 shell 就开启时:
+其它配置。默认不开环境变量:模式 A 仍由 TUN + 进程规则工作,模式 B 则直接交给旁路由。
+只有确认必须让所有新 shell 硬连本机 Clash 时才使用:
 
 ```bash
 PROXY_DEFAULT_ON=1 ./install.sh proxy
 ```
+
+> **慎用 `PROXY_DEFAULT_ON=1`。** `.zshrc` 改回默认关闭后,已经运行的 ChatGPT/Codex、IDE
+> 或 Agent 仍保留旧环境；必须重启这些长驻进程,否则关 Clash 时它们仍会因 7897 消失而断联。
 
 默认生成的变量是:
 
@@ -118,7 +135,26 @@ function proxy   { $env:HTTP_PROXY="http://127.0.0.1:<MIXED_PORT>"; $env:HTTPS_P
 function unproxy { Remove-Item Env:HTTP_PROXY,Env:HTTPS_PROXY,Env:ALL_PROXY,Env:NO_PROXY -ErrorAction SilentlyContinue; "代理已关闭" }
 ```
 
+## 模式 B:旁路由主路径
+
+当设备默认网关已经指向旁路由时,本机 Clash 不再承担透明接管:
+
+1. 本机「系统代理」关、TUN 关。
+2. Shell 保持 `unproxy`；重启所有曾继承 `127.0.0.1:<MIXED_PORT>` 的 GUI/Agent。
+3. 用清空代理变量后的直连测试验收旁路由,不要拿旧进程作证:
+
+```bash
+route -n get default | grep -E 'gateway|interface'
+env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY \
+    -u http_proxy -u https_proxy -u all_proxy -u no_proxy \
+    curl --noproxy '*' -I https://api.github.com
+```
+
+需要临时强制某个会话经本机 Clash、或对比两条代理路径时才执行 `proxy`；完成后 `unproxy`。
+
 ## 验证
+
+### 模式 A
 
 打开客户端「**连接**」页,操作一下目标工具,看那条连接:
 
@@ -133,13 +169,23 @@ proxy_status
 curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
 ```
 
+### 模式 B
+
+- `scutil --proxy`（macOS）应显示 HTTP/HTTPS/SOCKS 均关闭。
+- 默认路由的 gateway 应是旁路由地址。
+- 清空八个大小写 `*PROXY` 后仍能解析并连接目标服务。
+- 用 `ps eww -p <PID>` 只筛代理变量,确认长驻 Agent 没残留 `127.0.0.1:7897`。
+
 ## 排错
 
 - **代理通但网页打不开 / 解析失败** —— 多半是开 TUN 后的 DNS 问题,检查客户端的
   DNS / fake-ip 配置(一般默认配置即可)。
 - **某进程没走代理** —— 它发包的真实进程名不在规则里,去「连接」页看名字补上。
 - **本地服务被代理影响** —— 确认 `no_proxy` 含 `localhost,127.0.0.1`。
-- **改了 Merge 不生效** —— 没重新激活配置;切走再切回订阅,或点一次激活。
+- **Clash Verge 的 Merge 里看不到规则** —— 这是预期行为:进程规则在「全局扩展脚本」,
+  Merge 为空即可。重新激活后检查最终配置的 `rules:` 首部,不要检查顶层 `prepend-rules`。
+- **关 Clash 后 Agent 断联** —— 旧进程仍继承 `*PROXY=127.0.0.1:<MIXED_PORT>`；确认新
+  shell 已干净后重启 ChatGPT/Codex/IDE。修改 rc 文件不会追溯更新已运行进程。
 
 ---
 
