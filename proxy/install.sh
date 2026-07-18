@@ -72,7 +72,7 @@ if [ "$SHELL_NAME" = "fish" ]; then
   cat > "$BLOCK" <<EOF
 $START_MARKER
 set -g __selective_proxy_port $PORT
-set -g __selective_proxy_no_proxy 'localhost,127.0.0.1,::1,.local,192.168.0.0/16,100.64.0.0/10'
+set -g __selective_proxy_no_proxy 'localhost,127.0.0.1,::1,.local,192.168.0.0/16,100.64.0.0/10,.tailscale.com,fd7a:115c:a1e0::/48'
 
 function proxy
     if not contains -- --force \$argv
@@ -125,7 +125,7 @@ else
   cat > "$BLOCK" <<EOF
 $START_MARKER
 __selective_proxy_port=$PORT
-__selective_proxy_no_proxy='localhost,127.0.0.1,::1,.local,192.168.0.0/16,100.64.0.0/10'
+__selective_proxy_no_proxy='localhost,127.0.0.1,::1,.local,192.168.0.0/16,100.64.0.0/10,.tailscale.com,fd7a:115c:a1e0::/48'
 
 proxy() {
   local force=0 quiet=0 arg

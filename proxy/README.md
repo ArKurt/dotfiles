@@ -118,7 +118,7 @@ PROXY_DEFAULT_ON=1 ./install.sh proxy
 HTTP_PROXY / http_proxy   = http://127.0.0.1:<MIXED_PORT>
 HTTPS_PROXY / https_proxy = http://127.0.0.1:<MIXED_PORT>
 ALL_PROXY / all_proxy     = socks5h://127.0.0.1:<MIXED_PORT>
-NO_PROXY / no_proxy       = localhost,127.0.0.1,::1,.local,192.168.0.0/16,100.64.0.0/10
+NO_PROXY / no_proxy       = localhost,127.0.0.1,::1,.local,192.168.0.0/16,100.64.0.0/10,.tailscale.com,fd7a:115c:a1e0::/48
 ```
 
 ### Windows(PowerShell)
