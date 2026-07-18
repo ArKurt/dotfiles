@@ -8,6 +8,20 @@
 > - `<MIXED_PORT>` —— 你客户端的混合端口(常见默认 `7890`,本仓库示例脚本用 `7897`)。
 > - 客户端需使用 Mihomo/Clash Meta 内核,并支持 TUN 模式与进程规则。
 
+## 适配哪些客户端（通用性 · 2026-07-18 核验）
+
+本套 `proxy`/`unproxy` **只认 `127.0.0.1:<MIXED_PORT>`,不认客户端**——凡 **Mihomo / Clash.Meta 内核**的都通用。已核验同属一核、可互换:
+
+| 客户端 | 内核 | 备注 |
+|---|---|---|
+| **Clash Verge Rev** | Mihomo | 桌面·Tauri;本机实测 `proxy` 通(mixed-port 7897) |
+| **FlClash**（chen08209） | Mihomo | Flutter·五端;核由 GUI 经 unix socket 驱动(不能命令行独立喂配置) |
+| **FlClashX**（pluralplay·FlClash 分叉） | Mihomo | 同上 + 机场服务/仪表盘增强;⚠️ 可选 HWID 上报面板 |
+
+**唯一前提 = 端口对齐**:把在用客户端的 **mixed-port 设成本仓库的 `<MIXED_PORT>`(默认 7897)**;或反过来 `CLASH_PORT=<客户端端口> ./install.sh proxy` 让脚本跟随。对齐后同一套 `proxy`/`unproxy` 在任意客户端下一致工作。
+
+> 模式 B(旁路由/nikki 透明代理)**与客户端无关**——流量在网关层被接管,本机跑哪个 Clash、甚至不跑,都不影响。
+
 ## 先选部署模式（互斥）
 
 | 模式 | 本机系统代理 | 本机 TUN | Shell 环境变量 | 适用场景 |
