@@ -243,6 +243,11 @@ curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
   Merge 为空即可。重新激活后检查最终配置的 `rules:` 首部,不要检查顶层 `prepend-rules`。
 - **关 Clash 后 Agent 断联** —— 旧进程仍继承 `*PROXY=127.0.0.1:<MIXED_PORT>`；确认新
   shell 已干净后重启 ChatGPT/Codex/IDE。修改 rc 文件不会追溯更新已运行进程。
+- **TUN 下测"另起的临时 mihomo 实例"会被自劫持** —— 本机全局 TUN 会接管临时实例的出站,
+  测自建节点时出口 IP 变成**机场节点**而非节点真实出口(易误判成节点飘到别的地区)。干净
+  测法:① 在节点服务器**本地自连**测出口;或 ② 用生产 Verge 自己的 mihomo(fwmark 排除
+  自身、不自劫持)+ API `GET /proxies/{name}/delay` 测握手延迟。附:mihomo `PUT /configs`
+  只收 home 或 Verge 数据目录(SAFE_PATHS)内的配置路径,`/tmp` 会被拒(400),临时配置放数据目录。
 
 ## 让局域网工具直连(LocalSend / AirDrop 类,仅模式 A)
 
