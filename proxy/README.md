@@ -62,28 +62,62 @@ TUN 透明接管全机流量(GUI 进程也能被规则匹配),规则模式让你
    订阅规则之前。以 **Clash Verge Rev 2.x** 为例,进入「订阅 → 全局扩展脚本」加入:
 
 ```javascript
-function main(config) {
-  const selectiveProxyRules = [
-    "PROCESS-NAME,cursor,<PROXY_GROUP>",
-    "PROCESS-NAME,codex,<PROXY_GROUP>",
-    "PROCESS-NAME,Codex (Service),<PROXY_GROUP>", // macOS Codex 桌面端
-    "PROCESS-NAME,git,<PROXY_GROUP>",
-    "PROCESS-NAME,curl,<PROXY_GROUP>",
-    "PROCESS-NAME,wget,<PROXY_GROUP>",
-    "PROCESS-NAME,npm,<PROXY_GROUP>",
-    // 可选宽匹配；会影响所有 Node/Python 程序,确认需要再打开:
-    // "PROCESS-NAME,node,<PROXY_GROUP>",
-    // "PROCESS-NAME,python3,<PROXY_GROUP>",
+function main(config, profileName) {
+  // 组名必须与订阅里的组名【逐字一致】,注意常带国旗 emoji + 空格,如 "🇺🇸 United States"
+  const PROXY = "<PROXY_GROUP>"; // 主代理组
+  const US    = "<US_GROUP>";    // 需美区落地的组(codex/claude 等);不需要就删掉相关行
+
+  // 组名容错:引用了不存在的组,mihomo 会校验整份配置失败并回滚。
+  // 读出真实存在的组,缺失时自动回退 —— 换订阅、跨机器也不崩。
+  const groups = new Set((config["proxy-groups"] || []).map((g) => g.name));
+  const pick = (n, fb) => (groups.has(n) ? n : fb);
+  const P = pick(PROXY, "GLOBAL");
+  const U = pick(US, P);
+
+  const rules = [
+    // — 局域网直连(最高优先级;LocalSend 等,详见下文「让局域网工具直连」)—
+    "PROCESS-NAME,localsend,DIRECT",
+    "DST-PORT,53317,DIRECT",
+    "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+    "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve",
+    // — 编码 Agent / 终端 CLI 强制走代理 —
+    // Cursor/VSCode 等 Electron 应用进程名都叫 electron,按进程会一刀切;AI 后端改按域名精准钉美区
+    "DOMAIN-SUFFIX,cursor.sh," + U,
+    "PROCESS-NAME,codex," + U,
+    "PROCESS-NAME,Codex (Service)," + U, // macOS Codex 桌面端
+    "PROCESS-NAME,claude," + U,
+    "PROCESS-NAME,git," + P,
+    "PROCESS-NAME,curl," + P,
+    "PROCESS-NAME,wget," + P,
+    "PROCESS-NAME,npm," + P,
+    // 可选宽匹配;会波及所有 Node/Python 程序,确认需要再打开:
+    // "PROCESS-NAME,node," + P,
+    // "PROCESS-NAME,python3," + P,
   ];
-  config.rules = [...selectiveProxyRules, ...(config.rules || [])];
+
+  // 让局域网组播绕过 TUN(LocalSend 等自动发现;详见下文「让局域网工具直连」)
+  config.tun = config.tun || {};
+  const ex = config.tun["route-exclude-address"] || [];
+  for (const c of ["224.0.0.0/4", "255.255.255.255/32"]) if (!ex.includes(c)) ex.push(c);
+  config.tun["route-exclude-address"] = ex;
+
+  config.rules = [...rules, ...(config.rules || [])];
   return config;
 }
 ```
 
-如果其它客户端明确支持 `prepend-rules`,可以把它作为生成阶段的扩展；它不是 Mihomo
-核心字段。**Clash Verge Rev 2.5.1 实测不能把 `prepend-rules` 留在最终配置顶层**——看似
-保存成功,实际不会插入 `rules:`。因此 Merge/「全局扩展覆写配置」为空是正常的,规则应放
-在「全局扩展脚本」。保存后重新激活订阅,再到「当前配置」确认规则真的位于 `rules:` 首部。
+> ⚠️ **为什么规则必须放「全局扩展脚本」,而不是「扩展覆写配置(Merge)」的 `prepend-rules`:**
+> Clash Verge Rev(实测 2.5.x)会把 Merge 里的 `prepend-rules` 原样输出成最终配置的
+> **顶层 `prepend-rules:` 键**;而它不是 Mihomo 核心字段,内核直接忽略 → 你的进程规则
+> **全部静默失效**。更阴险的是失效后这些流量会被 `MATCH,<兜底组>` 接住、"看起来正常",
+> 只有 `codex→美区组` 这种「指定去向」的意图悄悄废掉。**别信生成的 yaml 文本,要问内核** ——
+> 用外部控制 API 看真正生效的规则:
+>
+> ```bash
+> curl -s --unix-socket <mihomo.sock> -H "Authorization: Bearer <secret>" http://localhost/rules
+> ```
+>
+> 脚本里改 `config.rules` 是直接操作最终数组,一定进 `rules:`。保存后重新激活订阅即可。
 
 > **关键:`PROCESS-NAME` 匹配的是真正发起连接的那个进程,不是终端窗口。**
 > 你在终端跑 `curl` 发包的是 `curl`,跑 `npm install` 发包的是 `node`。
@@ -200,6 +234,38 @@ curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
   Merge 为空即可。重新激活后检查最终配置的 `rules:` 首部,不要检查顶层 `prepend-rules`。
 - **关 Clash 后 Agent 断联** —— 旧进程仍继承 `*PROXY=127.0.0.1:<MIXED_PORT>`；确认新
   shell 已干净后重启 ChatGPT/Codex/IDE。修改 rc 文件不会追溯更新已运行进程。
+
+## 让局域网工具直连(LocalSend / AirDrop 类,仅模式 A)
+
+模式 A 开 TUN 后,局域网互传工具会**一半坏一半好**,先分清:
+
+| 环节 | 走向 | 说明 |
+|---|---|---|
+| **传输**(单播到 `192.168.x.x`) | 物理网卡直连 ✅ | 局域网有精确路由,不进 TUN,一般不用管 |
+| **发现**(组播 `224.0.0.167`) | 被 TUN 吞 ❌ | `auto-route` 把组播拉进 TUN 的 gvisor,出不到局域网,**双方发现不到彼此** |
+
+先实测确认是不是这个问题(关键看组播走哪个网卡):
+
+```bash
+ip route get 224.0.0.167     # 走 dev Meta/tun = 被 TUN 吞;走物理网卡(如 ens33)才正常
+ip route get 192.168.1.50    # 局域网对端应走物理网卡直连
+```
+
+**修复** —— 上面模式 A 的完整模板**已经内置**这两块(`tun.route-exclude-address` 排除组播
++ 4 条局域网直连置顶);从那份模板起步就无需再动,原理是:
+
+- **让组播绕过 TUN** —— 给 `tun.route-exclude-address` 加 `224.0.0.0/4` + 广播(`strict-route`
+  须为 `false`),组播回落物理网卡;
+- **直连置顶** —— `PROCESS-NAME,localsend` / `DST-PORT,53317` / LAN 网段 / 组播 → `DIRECT`,
+  绝不进代理组。
+
+保存后**重新激活订阅**,再 `ip route get 224.0.0.167` 应从 TUN 网卡变回物理网卡。
+
+> **保底退路:** 若 `route-exclude-address` 在 gvisor 栈下没能救回组播,直接在 LocalSend 里
+> **手动收藏对端 IP**(`192.168.x.x`)。单播传输本就走物理网卡直连,手填 IP 完全绕过发现,必通。
+>
+> 局域网还传不了,就查两端防火墙有没有放行 `53317` 的 **TCP + UDP**,以及路由器有没有开
+> 「AP 隔离 / 客户端隔离」。
 
 ---
 
