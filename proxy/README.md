@@ -81,8 +81,8 @@ function main(config, profileName) {
     "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
     "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve",
     // — 编码 Agent / 终端 CLI 强制走代理 —
-    // Cursor/VSCode 等 Electron 应用进程名都叫 electron,按进程会一刀切;AI 后端改按域名精准钉美区
-    "DOMAIN-SUFFIX,cursor.sh," + U,
+    // Cursor/VSCode 等 Electron 应用进程名都叫 electron,按进程会一刀切;改按域名关键字覆盖 Cursor 全家(cursor.sh/cursorapi.com/cursor-cdn.com)
+    "DOMAIN-KEYWORD,cursor," + U,
     "PROCESS-NAME,codex," + U,
     "PROCESS-NAME,Codex (Service)," + U, // macOS Codex 桌面端
     "PROCESS-NAME,claude," + U,
