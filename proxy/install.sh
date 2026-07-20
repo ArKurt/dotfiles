@@ -6,10 +6,13 @@
 #   PROXY_SHELL=zsh       fish, zsh, or bash (default: infer from $SHELL)
 #   PROXY_CONFIG=/path    target rc file (mainly useful for tests)
 #   PROXY_DEFAULT_ON=1    enable proxy variables when a shell starts (default: 0)
+#   WITH_GITPUSH=1        add a gitpush() that pushes over the Clash socks tunnel,
+#                         for TUN setups where plain `git push` stalls (default: 0)
 set -euo pipefail
 
 PORT="${CLASH_PORT:-7897}"
 DEFAULT_ON="${PROXY_DEFAULT_ON:-0}"
+GITPUSH="${WITH_GITPUSH:-0}"
 START_MARKER="# === selective-proxy (managed by dotfiles) ==="
 END_MARKER="# === selective-proxy end ==="
 
@@ -23,6 +26,10 @@ fi
 case "$DEFAULT_ON" in
   0|1) ;;
   *) echo "✗ PROXY_DEFAULT_ON must be 0 or 1 (got: $DEFAULT_ON)" >&2; exit 2 ;;
+esac
+case "$GITPUSH" in
+  0|1) ;;
+  *) echo "✗ WITH_GITPUSH must be 0 or 1 (got: $GITPUSH)" >&2; exit 2 ;;
 esac
 
 is_windows() {
@@ -115,6 +122,14 @@ function proxy_status
     end
 end
 EOF
+  if [ "$GITPUSH" = 1 ]; then
+    cat >> "$BLOCK" <<EOF
+
+function gitpush --description 'git push over Clash socks tunnel (TUN 下 SSH 上行卡时用)'
+    env GIT_SSH_COMMAND="ssh -o ProxyCommand='nc -X 5 -x 127.0.0.1:\$__selective_proxy_port %h %p' -o ConnectTimeout=20" git push \$argv
+end
+EOF
+  fi
   if [ "$DEFAULT_ON" = 1 ]; then
     printf '%s\n' 'proxy --quiet' >> "$BLOCK"
   else
@@ -165,6 +180,14 @@ proxy_status() {
   fi
 }
 EOF
+  if [ "$GITPUSH" = 1 ]; then
+    cat >> "$BLOCK" <<EOF
+
+gitpush() {
+  GIT_SSH_COMMAND="ssh -o ProxyCommand='nc -X 5 -x 127.0.0.1:\$__selective_proxy_port %h %p' -o ConnectTimeout=20" git push "\$@"
+}
+EOF
+  fi
   if [ "$DEFAULT_ON" = 1 ]; then
     printf '%s\n' 'proxy --quiet' >> "$BLOCK"
   else
@@ -190,5 +213,5 @@ cat "$TMP" > "$CONFIG"
 
 echo "✓ installed selective-proxy helpers for $SHELL_NAME in $CONFIG (port $PORT, default: $([ "$DEFAULT_ON" = 1 ] && echo on || echo off))"
 echo "  reload with: source $CONFIG"
-echo "  commands: proxy | unproxy | proxy_status"
+echo "  commands: proxy | unproxy | proxy_status$([ "$GITPUSH" = 1 ] && echo ' | gitpush')"
 echo "  note: Clash/Mihomo profiles are not modified; choose local-TUN or side-router mode per proxy/README.md"

@@ -160,6 +160,15 @@ PROXY_DEFAULT_ON=1 ./install.sh proxy
 > **慎用 `PROXY_DEFAULT_ON=1`。** `.zshrc` 改回默认关闭后,已经运行的 ChatGPT/Codex、IDE
 > 或 Agent 仍保留旧环境；必须重启这些长驻进程,否则关 Clash 时它们仍会因 7897 消失而断联。
 
+**可选:`WITH_GITPUSH=1`(特殊环境才需要)** —— 额外装一个 `gitpush`,走 Clash 的 socks 隧道
+(`nc -X 5 -x 127.0.0.1:<MIXED_PORT>`)推送。仅用于 **TUN 模式下 SSH 上行传输卡死**的环境
+(现象:`git ls-remote` 能通、`git push` 上传 pack 超时);平时照常 `git push`,卡了才 `gitpush`
+(参数原样透传)。依赖 Clash 在跑,故默认不装。
+
+```bash
+WITH_GITPUSH=1 ./install.sh proxy
+```
+
 默认生成的变量是:
 
 ```text
