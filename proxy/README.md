@@ -248,6 +248,11 @@ curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
   测法:① 在节点服务器**本地自连**测出口;或 ② 用生产 Verge 自己的 mihomo(fwmark 排除
   自身、不自劫持)+ API `GET /proxies/{name}/delay` 测握手延迟。附:mihomo `PUT /configs`
   只收 home 或 Verge 数据目录(SAFE_PATHS)内的配置路径,`/tmp` 会被拒(400),临时配置放数据目录。
+- **国内工具更新失败 / 大文件 TLS 掐断** —— `PROCESS-NAME,curl/npm/node→代理` 会把
+  **国内服务**流量也误丢给海外节点(轻则慢,重则大文件报 `TLS unexpected eof`)。例:
+  `kimi update` 从 `code`/`cdn.kimi.com` 下载几十 MB 二进制,被推到香港节点后 TLS 被掐。
+  解法:给国内域名显式直连、且排在进程规则**之前** —— `DOMAIN-SUFFIX,kimi.com,DIRECT`。
+  同理适用于其它国产 CLI 的自更新。
 
 ## 让局域网工具直连(LocalSend / AirDrop 类,仅模式 A)
 
