@@ -11,6 +11,10 @@
 > 客户端需使用 **Mihomo / Clash Meta 内核**,并支持 TUN 模式与进程规则。
 > 只认端口不认客户端——Verge Rev / FlClash / FlClashX 都通用,把 mixed-port 对齐即可。
 
+Tailscale 在当前网络需要通过本机 Mihomo 到达控制面和 DERP 的专门配置，见
+[Tailscale.md](Tailscale.md)。该配置只影响 `tailscaled` 服务，不会给整个桌面或 shell
+常驻注入代理变量。
+
 ## 先选部署模式(互斥)
 
 | 模式 | 本机系统代理 | 本机 TUN | Shell 环境变量 | 适用场景 |
