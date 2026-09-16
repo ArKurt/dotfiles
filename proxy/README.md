@@ -22,8 +22,9 @@ Tailscale 在当前网络需要通过本机 Mihomo 到达控制面和 DERP 的�
 | **A · 本机按进程分流** | 关 | 开 | 默认关、必要时兜底 | 设备直接接普通网关,需要本机 Clash 决定哪些进程代理 |
 | **B · 旁路由主路径** | 关 | 关 | 默认关、仅故障/A-B 测试时 `proxy` | 默认网关已经是 OpenWrt/ImmortalWrt 等透明代理旁路由 |
 
-> ⚠️ **两种模式不要叠加。** 同时开系统代理、TUN、常驻 `*PROXY` 和旁路由透明代理,会让真实
-> 路径难以判断,还会让长驻进程硬依赖本机 Clash——关掉就立即断联,不会自动回退旁路由。
+> 建议只保留一条主要接管路径。系统代理与 TUN 同开并不必然形成代理环路，
+> 但会增加路径判断难度；显式代理也可用于诊断或个别服务。
+> 继承本机代理变量的进程依赖该监听端口，关闭客户端不会自动回退旁路由。
 
 ## 安装 shell helpers
 
@@ -51,7 +52,7 @@ WITH_GITPUSH=1 ./install.sh proxy       # 装 gitpush，走 socks 隧道推送�
 
 ### 模式 A
 
-1. **关闭「系统代理」** —— TUN 接管后不需要它,留着可能重复代理。
+1. **默认关闭「系统代理」** —— 以 TUN 为主路径，个别服务可显式使用代理。
 2. **打开 TUN 模式**(虚拟网卡)—— 首次可能要安装服务 / 授权。
 3. **代理模式选「规则」** —— 只有规则模式下 `PROCESS-NAME` 才生效。
 4. **加进程优先规则** —— 别直接改订阅(更新会被覆盖),用客户端的**扩展脚本**功能把规则插到
@@ -81,6 +82,7 @@ curl -s https://api.ipify.org; echo   # 出口 IP 应是代理节点的
 
 ## 延伸阅读
 
+- **[connection-diagnostics.md](connection-diagnostics.md)** —— 重连排查、请求体上传测速及证据边界。
 - **[reference.md](reference.md)** —— 参考手册:原理、完整规则模板、各平台进程名差异、
   Windows PowerShell、排错、局域网工具直连(LocalSend)、移动端(Android / iOS)配置。
 - **[flclash-notes.md](flclash-notes.md)** —— FlClash 0.8.94 内部机制核验:覆写脚本约定、

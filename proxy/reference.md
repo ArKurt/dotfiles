@@ -24,11 +24,11 @@ TUN 透明接管全机流量(GUI 进程也能被规则匹配),规则模式让你
 | 终端里的 git / curl / npm / python 等 | 强制代理 ✅ |
 | 浏览器及其它 app | 按订阅规则自动分流(该直连直连、该代理代理)✅ |
 
-### 为什么两种模式不能叠加
+### 为什么建议明确一条主要接管路径
 
-**不要同时开本机系统代理、TUN、常驻 `*PROXY` 和旁路由透明代理。** 多层接管会让
-真实路径难以判断,还会让长驻进程硬依赖 `127.0.0.1:<MIXED_PORT>`；一旦关掉本机 Clash,
-这些旧进程立即断联,不会自动回退旁路由。
+系统代理、TUN、显式代理和旁路由共存并不必然形成环路；应检查真实路由和代理出站。
+日常建议明确一条主要路径，显式代理仅作特定服务或 A/B 测试的入口。
+继承 `127.0.0.1:<MIXED_PORT>` 的进程依赖该端口，关闭本机代理不会自动回退旁路由。
 
 ---
 
@@ -74,6 +74,11 @@ function main(config, profileName) {
     "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve",
     // — 国内服务显式直连,必须排在下面的进程规则之前(见排错「国内工具更新被误代理」)—
     "DOMAIN-SUFFIX,kimi.com,DIRECT",
+    // 服务域名优先于通用进程规则，避免同一服务因调用程序不同而更换出口。
+    "DOMAIN-SUFFIX,chatgpt.com," + U,
+    "DOMAIN-SUFFIX,openai.com," + U,
+    "DOMAIN-SUFFIX,oaistatic.com," + U,
+    "DOMAIN-SUFFIX,oaiusercontent.com," + U,
     // — 编码 Agent / 终端 CLI 强制走代理 —
     // Cursor/VSCode 等 Electron 应用进程名都叫 electron,按进程会一刀切;改按域名关键字覆盖 Cursor 全家(cursor.sh/cursorapi.com/cursor-cdn.com)
     "DOMAIN-KEYWORD,cursor," + U,
@@ -116,6 +121,11 @@ curl -s --unix-socket <mihomo.sock> -H "Authorization: Bearer <secret>" http://l
 脚本里改 `config.rules` 是直接操作最终数组,一定进 `rules:`。保存后重新激活订阅即可。
 
 ### PROCESS-NAME 匹配的是谁
+
+上述四条域名是核心覆盖，不是 OpenAI 全部依赖域名清单；其余依赖结合订阅规则集与
+[官方网络说明](https://help.openai.com/en/articles/9247338)维护。
+测试连接应核验最终节点：如果 curl 命中主组、Codex 命中专用组，curl 成功不能证明
+Codex 所用链路正常。详见 [重连排查](connection-diagnostics.md)。
 
 **匹配的是真正发起连接的那个进程,不是终端窗口。**
 你在终端跑 `curl` 发包的是 `curl`,跑 `npm install` 发包的是 `node`。

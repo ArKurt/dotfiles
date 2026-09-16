@@ -45,6 +45,22 @@ CONNECT 后还会继续按规则选择出口；若仍强制 `DIRECT`，表现为
 同时把 `tailscale.com`、`*.tailscale.com`、`tailscale.io`、`*.tailscale.io` 保留在
 Mihomo DNS 的 `fake-ip-filter` 中，避免 TUN Fake-IP 参与这些服务域名的解析。
 
+### 规则顺序与配置漂移
+
+如果还有 `PROCESS-NAME,tailscaled,DIRECT` 或 `PROCESS-NAME,tailscale,DIRECT`，
+上面的控制面域名代理规则必须位于它们之前，否则先命中进程规则仍会直连。
+Tailnet 的 `100.64.0.0/10`、`fd7a:115c:a1e0::/48` 数据面保留直连策略；
+服务级 HTTP 代理、Mihomo 路由规则和 DNS 必须按同一方案核验。
+
+`fake-ip-filter` 也可使用 `+.tailscale.com`、`+.tailscale.io` 的域名通配语法。
+这不等于配置 MagicDNS；内部 Tailnet 域名应由系统分域 DNS 或专门的 DNS policy 处理。
+不要为解决局部 DNS 问题将整个 Mihomo 出口固定到 Tailscale 网卡。
+
+2026-09-15 核验发现一台机器仍使用早期的控制面 DIRECT 规则，且最终配置没有
+对应 Fake-IP 排除。已通过持久化扩展脚本补齐并核验内核规则。
+这是配置一致性修复，不是 Codex 重连根因的证明；参见
+[connection-diagnostics.md](connection-diagnostics.md)。
+
 本机持久化位置：
 
 - `~/.local/share/io.github.clash-verge-rev.clash-verge-rev/profiles/Script.js`
