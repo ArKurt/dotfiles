@@ -44,6 +44,48 @@ FlClash ≥ 0.8.85 支持覆写脚本,能力对齐 Clash Verge Rev 的全局扩�
 
 ---
 
+## 导入订阅
+
+### ✅ Linux 上 `clash://` 深链可用,但必须是**冷启动参数**
+
+本笔记早期写的是「该 scheme 只在 Windows 注册,Linux 无效」——**点击链接确实无效**,
+但 `lib/common/link.dart` 里有一条专门为 Linux 写的路径:
+
+```dart
+/// Linux argv: the gtk plugin hooks GApplication too late to see it.
+void seedInitialLink(List<String> args) { ... }
+```
+
+它从**启动参数**里取 URI,所以下面这样是能导入的:
+
+```bash
+flclash 'clash://install-config?url=<百分号编码后的订阅地址>'
+```
+
+两个前提缺一不可:
+
+- **必须没有已运行实例**。Linux 的 Flutter runner 没开 `G_APPLICATION_HANDLES_OPEN`,
+  第二次启动的 argv 会被 GApplication 丢掉 —— 实测对其 D-Bus 调
+  `org.gtk.Application.Open` 会直接回 `Application does not open files`。
+  所以要先退出 FlClash,再带着参数冷启动。
+- `url` 的值要**百分号编码**:整个订阅地址编码成一个参数,否则其中的 `&` 会被当成参数分隔符。
+
+### 机场挂掉(403 / 超时)时怎么导入
+
+订阅拉不动时 URL 导入必然失败(FlClash 要先下载成功才建档),但**本地已有的缓存配置**能救急:
+起一个只监听回环的 HTTP 服务托管缓存文件,再让 FlClash 走它自己的导入逻辑:
+
+```bash
+python3 -m http.server 18899 --bind 127.0.0.1 --directory /tmp/subdir
+flclash 'clash://install-config?url=http%3A%2F%2F127.0.0.1%3A18899%2Fxxx.yaml'
+```
+
+导入后 `profiles.url` 指向这个临时地址(不再可更新),等机场恢复后再把 URL 换成真实地址。
+注意:响应没有 `Content-Disposition` 时 FlClash 会拿 **profile id 当名称**,所以导入后名字是一串数字;
+想让它取到文件名,本地服务需带 `Content-Disposition: attachment; filename="xxx.yaml"`。
+
+---
+
 ## 覆写脚本
 
 引擎是 **QuickJS**(`flutter_js` + `libquickjs_c_bridge_plugin.so`),ES2020 特性可用
@@ -67,6 +109,33 @@ Clash Verge Rev 传 `main(config, profileName)`,**FlClash 只传 `config`**。
 
 运行时不注入任何平台标识,传入的 `config` 是订阅正文(两端同步后完全一致)。
 所以**做不到「一个脚本自动区分手机/桌面」**。要让两端行为不同,只能靠下面的双 profile 方案。
+
+### ⚠️ 光设 `script_id` 不够,`overwrite_type` 必须是 `script`
+
+三种覆写模式**互斥**(`lib/enum/enum.dart`):
+
+```dart
+enum OverwriteType { standard, script, custom }
+```
+
+`lib/views/profiles/overwrite/overwrite.dart` 按它分支渲染,只有 `script` 走 `ScriptContent`
+——也就是唯一会执行脚本的那条路:
+
+```dart
+OverwriteType.standard => const StandardContent(),
+OverwriteType.script   => const ScriptContent(),   // ← 只有这个跑脚本
+OverwriteType.custom   => const CustomContent(),
+```
+
+所以手工挂脚本必须**两列一起改**;只改 `script_id` 时脚本**静默不执行** ——
+不报错、客户端界面也看不出异常,只是规则没进去:
+
+```sql
+UPDATE profiles SET script_id = <scriptId>, overwrite_type = 'script' WHERE id = <profileId>;
+```
+
+判据别信 yaml,问内核(见「验证方法:问内核,别信 yaml」):`GET /rules` 的条数应等于
+「订阅自带 + 脚本注入」,或直接看 `ProcessName` 类型规则的条数 —— **为 0 就是脚本没跑**。
 
 ---
 
@@ -259,9 +328,10 @@ OpenAI → SSRDOG → Auto → 🇭🇰 Hong Kong     ← 规则没问题，但�
 | 坑 | 现象 | 正解 |
 |---|---|---|
 | `currentProfileId` 填字符串 | **app 静默卡死**,GUI 起不来、内核不启动、日志一行没有 | 必须是 `int` |
+| 只改 `profiles.script_id` 挂脚本 | 脚本**静默不执行**,不报错、界面无异常 | `overwrite_type` 必须同时改成 `'script'`,见「覆写脚本」 |
 | `find-process-mode` 填 `strict` | 静默回退 | FlClash 枚举只有 `{always, off}`,**没有 strict** |
 | 以为 flclash / flclashx 可共存 | 安装报冲突 | 必须先卸载其一 |
-| 以为能用 `clash://install-config?url=` 深链导入 | 无反应 | 该 scheme **只在 Windows 注册**(`lib/common/window.dart`),Linux 无效 |
+| 以为能用 `clash://install-config?url=` 深链导入 | 点链接无反应 | 点链接确实只有 Windows 可用;Linux 走**冷启动参数**有效,见「导入订阅」 |
 
 经验:FlClash 的配置**用 GUI 改最稳**。手工改 sqlite / shared_preferences 前,
 先去源码确认字段类型与枚举取值(`lib/models/`、`lib/enum/enum.dart`),并**先备份数据目录**。

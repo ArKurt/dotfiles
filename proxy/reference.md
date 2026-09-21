@@ -72,8 +72,18 @@ function main(config, profileName) {
     "DST-PORT,53317,DIRECT",
     "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
     "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve",
+    // — Tailscale:控制面走代理、数据面直连(详见 Tailscale.md)—
+    // 顺序不可颠倒:控制面域名必须排在下面的进程直连规则之前,否则先命中
+    // PROCESS-NAME,tailscaled,DIRECT 仍会直连,服务级代理形同虚设。
+    "DOMAIN-SUFFIX,tailscale.com," + P,
+    "DOMAIN-SUFFIX,tailscale.io," + P,
+    "PROCESS-NAME,tailscaled,DIRECT",
+    "PROCESS-NAME,tailscale,DIRECT",
+    "IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+    "IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve",
     // — 国内服务显式直连,必须排在下面的进程规则之前(见排错「国内工具更新被误代理」)—
-    "DOMAIN-SUFFIX,kimi.com,DIRECT",
+    "DOMAIN-SUFFIX,kimi.com,DIRECT",  // Kimi Code 更新走 code/cdn.kimi.com,国内大文件经海外节点会 TLS eof
+    "DOMAIN-SUFFIX,deepseek.com,DIRECT",  // DeepSeek 官方(api/chat/platform):国内直连最快;不写会被下面的 PROCESS-NAME,node 抢先丢给海外节点
     // 服务域名优先于通用进程规则，避免同一服务因调用程序不同而更换出口。
     "DOMAIN-SUFFIX,chatgpt.com," + U,
     "DOMAIN-SUFFIX,openai.com," + U,
@@ -89,9 +99,13 @@ function main(config, profileName) {
     "PROCESS-NAME,curl," + P,
     "PROCESS-NAME,wget," + P,
     "PROCESS-NAME,npm," + P,
-    // 可选宽匹配;会波及所有 Node/Python 程序,确认需要再打开:
-    // "PROCESS-NAME,node," + P,
-    // "PROCESS-NAME,python3," + P,
+    // 宽匹配:会波及所有 Node/Python 程序。本机部署版【已启用】,
+    // 因此上面的 kimi/deepseek 等国内服务必须显式直连并排在这些规则之前。
+    "PROCESS-NAME,node," + P,
+    "PROCESS-NAME,python," + P,
+    "PROCESS-NAME,python3," + P,
+    "PROCESS-NAME,fish," + P,
+    "PROCESS-NAME,reclaude," + U,  // 默认走美区机场;SG 单跳作备用,GUI 里手动切 🇸🇬 组即可
   ];
 
   // 让局域网组播绕过 TUN(LocalSend 等自动发现;详见下文「让局域网工具直连」)
@@ -100,10 +114,35 @@ function main(config, profileName) {
   for (const c of ["224.0.0.0/4", "255.255.255.255/32"]) if (!ex.includes(c)) ex.push(c);
   config.tun["route-exclude-address"] = ex;
 
+  // DeepSeek 官方 API 必须走真实解析:fake-ip 会把它映射到 198.18.x.x,
+  // 凡带 SSRF/DNS 校验的客户端(例如 dsh-usage 的余额查询)都会拒绝该地址而报错。
+  // Tailscale 的两条同上,理由见 Tailscale.md。
+  config.dns = config.dns || {};
+  const filter = config.dns["fake-ip-filter"] || [];
+  for (const d of ["+.tailscale.com", "+.tailscale.io", "+.deepseek.com"]) {
+    if (!filter.includes(d)) filter.push(d);
+  }
+  config.dns["fake-ip-filter"] = filter;
+
   config.rules = [...rules, ...(config.rules || [])];
   return config;
 }
 ```
+
+### 与已部署实例的差异(2026-09-21 核验)
+
+本模板已与本机实际生效的 `profiles/Script.js` 对齐,两点需要知道:
+
+- **`PROCESS-NAME,Codex (Service)`** 是 macOS Codex 桌面端用的;Linux 部署版没有这条
+  (Linux 上进程名不匹配,留着也无害)。用 WebDAV 把脚本同步到 macOS 时**注意保留**。
+- 部署实例的具体取值是 `PROXY = "SSRDOG"`、`US = "🇺🇸 United States"`;`pick()` 的容错
+  保证换订阅、换机器时不会因组名缺失而整份校验失败。
+
+> ✅ **已定性(2026-09-21)**:同一份脚本在 **FlClash** 下能正常写进 `tun.route-exclude-address`
+> (内核 `/configs` 实测为 `['224.0.0.0/4','255.255.255.255/32']`),在 **Clash Verge** 下却被写成
+> **空数组**。结论:**是 Clash Verge 的 App 层在脚本之后应用了自己的 TUN 默认值**,把脚本的值
+> 覆盖掉了 —— 不是脚本无效,也不是"TUN 关闭时被规范化"。
+> 所以要在 Clash Verge 下让组播排除生效,得从它的 TUN 设置入手;FlClash 下脚本本身即可生效。
 
 ### ⚠️ 规则必须放「全局扩展脚本」,不能放「扩展覆写配置(Merge)」
 
@@ -214,6 +253,16 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY \
 
 - **代理通但网页打不开 / 解析失败** —— 多半是开 TUN 后的 DNS 问题,检查客户端的
   DNS / fake-ip 配置(一般默认配置即可)。
+- **⚠️ TUN 开着、所有 TCP 超时,但代理端口和 DNS 都正常** —— Linux 上**先查防火墙**。
+  UFW 默认 `DEFAULT_INPUT_POLICY=DROP`,而 mihomo 在 `stack: mixed` 下用 gVisor 在**用户态**
+  终结 TCP,把 SYN-ACK **用自身元组**写回 TUN;内核视其为**新入站连接**(conntrack 认不出是应答)
+  → 命中 INPUT 链被丢弃 → 握手永远完不成。此时内核日志里**一条 `[TCP]` 都不会有**
+  (mihomo 只在握手完成后才记录连接),极易误判成"内核没收到包"。UDP/DNS 不受影响
+  (应答能匹配 conntrack),所以症状是"DNS 正常、代理端口正常、唯独 TUN 内的 TCP 全灭"。
+  查证:`journalctl -b | grep "UFW BLOCK" | grep IN=<tun设备名>`;
+  解决:`sudo ufw allow in on <tun设备名>`(Clash Verge 设备名 `Mihomo`,FlClash 为 `FlClash`)。
+  2026-09-21 本机实测:修复前 TUN 内 TCP 全部超时、UFW 拦截 59 次;加规则后立即恢复
+  (baidu 48ms / google 1.0s)。
 - **某进程没走代理** —— 它发包的真实进程名不在规则里,去「连接」页看名字补上。
 - **本地服务被代理影响** —— 确认 `no_proxy` 含 `localhost,127.0.0.1`。
 - **Clash Verge 的 Merge 里看不到规则** —— 这是预期行为:进程规则在「全局扩展脚本」,
