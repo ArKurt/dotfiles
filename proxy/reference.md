@@ -65,6 +65,7 @@ function main(config, profileName) {
   const pick = (n, fb) => (groups.has(n) ? n : fb);
   const P = pick(PROXY, "GLOBAL");
   const U = pick(US, P);
+  const A = pick("OpenAI", U); // 服务专用选择器;缺失时回退美区组
 
   const rules = [
     // — 局域网直连(最高优先级;LocalSend 等,详见下文「让局域网工具直连」)—
@@ -85,15 +86,15 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,kimi.com,DIRECT",  // Kimi Code 更新走 code/cdn.kimi.com,国内大文件经海外节点会 TLS eof
     "DOMAIN-SUFFIX,deepseek.com,DIRECT",  // DeepSeek 官方(api/chat/platform):国内直连最快;不写会被下面的 PROCESS-NAME,node 抢先丢给海外节点
     // 服务域名优先于通用进程规则，避免同一服务因调用程序不同而更换出口。
-    "DOMAIN-SUFFIX,chatgpt.com," + U,
-    "DOMAIN-SUFFIX,openai.com," + U,
-    "DOMAIN-SUFFIX,oaistatic.com," + U,
-    "DOMAIN-SUFFIX,oaiusercontent.com," + U,
+    "DOMAIN-SUFFIX,chatgpt.com," + A,
+    "DOMAIN-SUFFIX,openai.com," + A,
+    "DOMAIN-SUFFIX,oaistatic.com," + A,
+    "DOMAIN-SUFFIX,oaiusercontent.com," + A,
     // — 编码 Agent / 终端 CLI 强制走代理 —
     // Cursor/VSCode 等 Electron 应用进程名都叫 electron,按进程会一刀切;改按域名关键字覆盖 Cursor 全家(cursor.sh/cursorapi.com/cursor-cdn.com)
     "DOMAIN-KEYWORD,cursor," + U,
-    "PROCESS-NAME,codex," + U,
-    "PROCESS-NAME,Codex (Service)," + U, // macOS Codex 桌面端
+    "PROCESS-NAME,codex," + A,
+    "PROCESS-NAME,Codex (Service)," + A, // macOS Codex 桌面端
     "PROCESS-NAME,claude," + U,
     "PROCESS-NAME,git," + P,
     "PROCESS-NAME,curl," + P,
@@ -135,8 +136,8 @@ function main(config, profileName) {
 
 - **`PROCESS-NAME,Codex (Service)`** 是 macOS Codex 桌面端用的;Linux 部署版没有这条
   (Linux 上进程名不匹配,留着也无害)。用 WebDAV 把脚本同步到 macOS 时**注意保留**。
-- 部署实例的具体取值是 `PROXY = "SSRDOG"`、`US = "🇺🇸 United States"`;`pick()` 的容错
-  保证换订阅、换机器时不会因组名缺失而整份校验失败。
+- 部署实例的具体取值是 `PROXY = "SSRDOG"`、`US = "🇺🇸 United States"`，并优先使用
+  `OpenAI` 服务专用组；`pick()` 的容错保证换订阅、换机器时不会因组名缺失而整份校验失败。
 
 > ✅ **已定性(2026-09-21)**:同一份脚本在 **FlClash** 下能正常写进 `tun.route-exclude-address`
 > (内核 `/configs` 实测为 `['224.0.0.0/4','255.255.255.255/32']`),在 **Clash Verge** 下却被写成
