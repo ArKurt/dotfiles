@@ -1,5 +1,16 @@
 # Tailscale 服务级代理
 
+## MacBook Omarchy 按需方案（2026-10-03）
+
+本页以下固定 `7897` 的例子是早期 Clash Verge 部署记录，不能直接作为当前 MacBook
+配置。当前 FlClash 的端口是 `7890`，家庭排除名单保存在本机配置中，不公开真实 SSID。
+已部署 [tailscale-auto/README.md](tailscale-auto/README.md) 的自动切换方案：家庭网络
+取消服务代理，外部网络在 FlClash 端口就绪时使用代理，网络事件及 15 秒定时检查
+触发模式同步。配置变更时短暂重启服务，保留登录身份。
+
+脚本、安装器、调研依据、验证记录和回滚步骤均在 `tailscale-auto/`。家庭网关路径
+尚待回家后实测；当前外部代理路径已实测在线。此方案替代本机固定代理 drop-in。
+
 ## 结论
 
 此机器所在网络无法稳定直连 Tailscale 的控制面：对真实服务器地址的 TCP 443

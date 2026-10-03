@@ -1,0 +1,8 @@
+[Unit]
+Description=Reconcile Tailscale proxy with home Wi-Fi and FlClash availability
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/tailscale-proxy-sync reconcile
+TimeoutStartSec=45

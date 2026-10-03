@@ -15,6 +15,21 @@ Tailscale 在当前网络需要通过本机 Mihomo 到达控制面和 DERP 的�
 [Tailscale.md](Tailscale.md)。该配置只影响 `tailscaled` 服务，不会给整个桌面或 shell
 常驻注入代理变量。
 
+### 按需运行经验：FlClash 与 Tailscale（2026-10-03）
+
+MacBook Omarchy 的 FlClash 在家庭 Wi-Fi 下停用，在外部网络
+按需运行。给 `tailscaled` 固定设置本机代理，会让它在 FlClash 停止后仍依赖该端口；
+GUI 的按需策略不会自动同步到 systemd 服务，普通 curl 成功也不能证明服务注册链路可用。
+
+已部署 [Tailscale 自动切换](tailscale-auto/README.md)：家庭网络取消服务代理；外部网络
+在实际 mixed port `7890` 就绪后使用代理；端口关闭后取消固定代理。NetworkManager
+事件触发检查，15 秒定时补查，仅模式变化时重启服务并保留登录身份。
+
+经验要点：先核验客户端真实端口、家庭排除名单和服务运行环境；切换服务环境变量需要
+重新启动进程；不要把历史部署的 `7897` 示例直接套到当前设备。外部代理路径已实测
+在线且无健康告警，家庭选择逻辑已测试，实际家庭网关连通性仍待回家后验证。
+后续更改 FlClash 的端口或家庭排除名单，也要同步 `/etc/tailscale-proxy.json`。
+
 ## 先选部署模式(互斥)
 
 | 模式 | 本机系统代理 | 本机 TUN | Shell 环境变量 | 适用场景 |

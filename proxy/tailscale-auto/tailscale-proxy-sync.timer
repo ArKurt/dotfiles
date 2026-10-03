@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Tailscale proxy after FlClash starts or stops
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

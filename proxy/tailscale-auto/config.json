@@ -1,0 +1,4 @@
+{
+  "home_ssids": ["YOUR_HOME_WIFI_SSID"],
+  "port": 7890
+}
